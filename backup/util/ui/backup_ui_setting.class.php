@@ -428,6 +428,21 @@ class backup_setting_ui_checkbox extends backup_setting_ui {
     }
 }
 
+class backup_setting_ui_advcheckbox extends backup_setting_ui_checkbox {
+
+
+    public function get_element_properties(base_task $task=null, renderer_base $output=null) {
+        // name, label, text, attributes
+
+        $icon = $this->get_icon();
+        $label = $this->get_label($task);
+        if (!empty($icon)) {
+            $label .= '&nbsp;'.$output->render($icon);
+        }
+        return $this->apply_options(array('element'=>'advcheckbox','name'=>self::NAME_PREFIX.$this->name, 'label'=>$label, 'text'=>$this->text, 'attributes'=>$this->attributes));
+    }
+}
+
 /**
  * Radio button user interface element for backup settings
  *

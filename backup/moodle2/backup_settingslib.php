@@ -126,13 +126,23 @@ class backup_section_generic_setting extends section_backup_setting {}
  * Setting to define if one section is included or no. Activities _included
  * settings depend of them if available
  */
-class backup_section_included_setting extends section_backup_setting {}
+class backup_section_included_setting extends section_backup_setting {
+	public function __construct($name, $vtype, $value = null, $visibility = self::VISIBLE, $status = self::NOT_LOCKED) {
+        parent::__construct($name, $vtype, $value, $visibility, $status);
+        $this->uisetting = new backup_setting_ui_advcheckbox($this, $name, null, array('group' => 1));
+    }
+}
 
 /**
  * section backup setting to control if section will include
  * user information or no, depends of @backup_users_setting
  */
-class backup_section_userinfo_setting extends section_backup_setting {}
+class backup_section_userinfo_setting extends section_backup_setting {
+	public function __construct($name, $vtype, $value = null, $visibility = self::VISIBLE, $status = self::NOT_LOCKED) {
+        parent::__construct($name, $vtype, $value, $visibility, $status);
+        $this->uisetting = new backup_setting_ui_advcheckbox($this, $name, null, array('group' => 2));
+    }
+}
 
 
 // Activity backup settings
@@ -140,17 +150,29 @@ class backup_section_userinfo_setting extends section_backup_setting {}
 /**
  * generic activity setting to pass various settings between tasks and steps
  */
-class backup_activity_generic_setting extends activity_backup_setting {}
+class backup_activity_generic_setting extends activity_backup_setting {
+	public function __construct($name, $vtype, $value = null, $visibility = self::VISIBLE, $status = self::NOT_LOCKED) {
+        parent::__construct($name, $vtype, $value, $visibility, $status);
+        $this->uisetting = new backup_setting_ui_advcheckbox($this, $name, null, array('group' => 11));
+    }
+}
 
 /**
  * activity backup setting to control if activity will
  * be included or no, depends of @backup_activities_setting and
  * optionally parent section included setting
  */
-class backup_activity_included_setting extends activity_backup_setting {}
+class backup_activity_included_setting extends activity_backup_setting {
+	
+}
 
 /**
  * activity backup setting to control if activity will include
  * user information or no, depends of @backup_users_setting
  */
-class backup_activity_userinfo_setting extends activity_backup_setting {}
+class backup_activity_userinfo_setting extends activity_backup_setting {
+	public function __construct($name, $vtype, $value = null, $visibility = self::VISIBLE, $status = self::NOT_LOCKED) {
+        parent::__construct($name, $vtype, $value, $visibility, $status);
+        $this->uisetting = new backup_setting_ui_advcheckbox($this, $name, null, array('group' => 21));
+    }
+}

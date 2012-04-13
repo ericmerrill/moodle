@@ -66,7 +66,70 @@ class backup_initial_form extends backup_moodleform {}
  * Nothing to override we only need it defined so that moodleform doesn't get confused
  * between stages.
  */
-class backup_schema_form extends backup_moodleform {}
+class backup_schema_form extends backup_moodleform {
+    /**
+     * Adds a link/button that controls the checked state of a group of checkboxes.
+     *
+     * @param int $groupid The id of the group of advcheckboxes this element controls
+     * @param string $text The text of the link. Defaults to selectallornone ("select all/none")
+     * @param array $attributes associative array of HTML attributes
+     * @param int $originalValue The original general state of the checkboxes before the user first clicks this element
+     */
+    function add_schema_checkbox_controller($groupid, $text = null, $attributes = null, $originalValue = 0) {
+        global $CFG, $PAGE;
+
+        // Name of the controller button
+        $checkboxcontrollername = 'nosubmit_checkbox_controller' . $groupid;
+        $checkboxcontrollerparam = 'checkbox_controller'. $groupid;
+        $checkboxgroupclass = 'checkboxgroup'.$groupid;
+
+        // Set the default text if none was specified
+        if (empty($text)) {
+            $text = get_string('selectallornone', 'form');
+        }
+
+        $mform = $this->_form;
+        $selectvalue = optional_param($checkboxcontrollerparam, null, PARAM_INT);
+        $contollerbutton = optional_param($checkboxcontrollername, null, PARAM_ALPHAEXT);
+
+        $newselectvalue = $selectvalue;
+        if (is_null($selectvalue)) {
+            $newselectvalue = $originalValue;
+        } else if (!is_null($contollerbutton)) {
+            $newselectvalue = (int) !$selectvalue;
+        }
+        // set checkbox state depending on orignal/submitted value by controoler button
+        if (!is_null($contollerbutton) || is_null($selectvalue)) {
+            foreach ($mform->_elements as $element) {
+                if (($element instanceof MoodleQuickForm_advcheckbox) &&
+                        $element->getAttribute('class') == $checkboxgroupclass &&
+                        !$element->isFrozen()) {
+                    $mform->setConstants(array($element->getName() => $newselectvalue));
+                }
+            }
+        }
+
+        $mform->addElement('hidden', $checkboxcontrollerparam, $newselectvalue, array('id' => "id_".$checkboxcontrollerparam));
+        $mform->setType($checkboxcontrollerparam, PARAM_INT);
+        $mform->setConstants(array($checkboxcontrollerparam => $newselectvalue));
+
+        $PAGE->requires->yui_module('moodle-form-schemacheckboxcontroller', 'M.form.checkboxcontroller',
+                array(
+                    array('groupid' => $groupid,
+                        'checkboxclass' => $checkboxgroupclass,
+                        'checkboxcontroller' => $checkboxcontrollerparam,
+                        'controllerbutton' => $checkboxcontrollername)
+                    )
+                );
+
+        require_once("$CFG->libdir/form/submit.php");
+        $submitlink = new MoodleQuickForm_submit($checkboxcontrollername, $attributes);
+        $mform->addElement($submitlink);
+        $mform->registerNoSubmitButton($checkboxcontrollername);
+        $mform->setDefault($checkboxcontrollername, $text);
+    }
+
+}
 /**
  * Confirmation backup user interface stage moodleform.
  *

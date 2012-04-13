@@ -231,6 +231,8 @@ class backup_ui_stage_schema extends backup_ui_stage {
                     if (!$courseheading) {
                         // If we havn't already display a course heading to group nicely
                         $form->add_heading('coursesettings', get_string('includeactivities', 'backup'));
+                        $form->add_schema_checkbox_controller(1, null, null, 1);
+                        $form->add_schema_checkbox_controller(2, null, null, 1);
                         $courseheading = true;
                     }
                     // First add each setting
