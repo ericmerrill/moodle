@@ -167,6 +167,22 @@ class qtype_randomsamatch extends question_type {
         return true;
     }
 
+    protected function initialise_question_instance(question_definition $question, $questiondata) {
+        parent::initialise_question_instance($question, $questiondata);
+
+        $question->choose = $questiondata->options->choose;
+        /*$question->shuffleanswers = $questiondata->options->shuffleanswers;
+        $question->answernumbering = $questiondata->options->answernumbering;
+        if (!empty($questiondata->options->layout)) {
+            $question->layout = $questiondata->options->layout;
+        } else {
+            $question->layout = qtype_multichoice_single_question::LAYOUT_VERTICAL;
+        }
+        $this->initialise_combined_feedback($question, $questiondata, true);
+
+        $this->initialise_question_answers($question, $questiondata, false);*/
+    }
+
     function restore_session_and_responses(&$question, &$state) {
         global $DB;
         global $QTYPES, $OUTPUT;
