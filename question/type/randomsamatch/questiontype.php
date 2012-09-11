@@ -267,4 +267,12 @@ class qtype_randomsamatch extends question_type {
     public function get_random_guess_score($question) {
         return 1/$question->options->choose;
     }
+
+    public function export_to_xml($question, qformat_xml $format, $extra=null) {
+        $xmlout = '';
+
+        $xmlout .= "    <choose>".$question->options->choose."</choose>\n";
+
+        return $xmlout;
+    }
 }

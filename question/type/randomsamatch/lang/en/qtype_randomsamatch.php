@@ -31,3 +31,4 @@ $string['pluginname_link'] = 'question/type/randomsamatch';
 $string['pluginnameadding'] = 'Adding a Random short-answer matching question';
 $string['pluginnameediting'] = 'Editing a Random short-answer matching question';
 $string['pluginnamesummary'] = 'Like a Matching question, but created randomly from the short answer questions in a particular category.';
+$string['pleaseananswerallparts'] = 'Please answer all parts of the question.';

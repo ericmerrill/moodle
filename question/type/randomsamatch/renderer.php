@@ -64,7 +64,24 @@ class qtype_randomsamatch_renderer extends qtype_with_combined_feedback_renderer
     }*/
 
     public function correct_response(question_attempt $qa) {
+
         $question = $qa->get_question();
+        $questionorder = $question->get_question_order();
+
+        $answers = $question->get_answers();
+        $right = array();
+        foreach ($questionorder as $key => $questionid) {
+            $subq = $question->get_question($questionid);
+            $right[] = $question->format_text($subq->questiontext,
+                    $subq->questiontextformat, $qa,
+                    'qtype_ransomsamatch', 'subquestion', $questionid) . ' – ' .
+                    $answers[$question->get_right_choice_for($questionid)];
+        }
+
+        if (!empty($right)) {
+            return get_string('correctansweris', 'qtype_match', implode(', ', $right));
+        }
+        /*$question = $qa->get_question();
 
         $right = array();
         foreach ($question->answers as $ansid => $ans) {
@@ -78,16 +95,7 @@ class qtype_randomsamatch_renderer extends qtype_with_combined_feedback_renderer
                 return get_string('correctansweris', 'qtype_multichoice',
                         implode(', ', $right));
         }
-        return '';
-    }
-
-    protected function num_parts_correct(question_attempt $qa) {
-        if ($qa->get_question()->get_num_selected_choices($qa->get_last_qt_data()) >
-                $qa->get_question()->get_num_correct_choices()) {
-            return get_string('toomanyselected', 'qtype_multichoice');
-        }
-
-        return parent::num_parts_correct($qa);
+        return '';*/
     }
 
 
@@ -102,10 +110,10 @@ class qtype_randomsamatch_renderer extends qtype_with_combined_feedback_renderer
             question_display_options $options) {
 
         $question = $qa->get_question();
-        $stemorder = $question->get_question_order();
+        $questionorder = $question->get_question_order();
         $response = $qa->get_last_qt_data();
 
-        $choices = $this->format_choices($question);
+        $choices = $question->get_answers();
 
         $result = '';
         $result .= html_writer::tag('div', $question->format_questiontext($qa),
@@ -116,14 +124,16 @@ class qtype_randomsamatch_renderer extends qtype_with_combined_feedback_renderer
         $result .= html_writer::start_tag('tbody');
 
         $parity = 0;
-        foreach ($stemorder as $key => $stemid) {
+        foreach ($questionorder as $key => $subquestionid) {
+            $subquestion = $question->get_question($subquestionid);
+
 
             $result .= html_writer::start_tag('tr', array('class' => 'r' . $parity));
-            $fieldname = 'sub' . $key;
+            $fieldname = 'choice' . $key;
 
             $result .= html_writer::tag('td', $question->format_text(
-                    $question->stems[$stemid], $question->stemformat[$stemid],
-                    $qa, 'qtype_match', 'subquestion', $stemid),
+                    $subquestion->questiontext, $subquestion->questiontextformat,
+                    $qa, 'qtype_match', 'subquestion', $subquestionid),
                     array('class' => 'text'));
 
             $classes = 'control';
@@ -135,7 +145,7 @@ class qtype_randomsamatch_renderer extends qtype_with_combined_feedback_renderer
                 $selected = 0;
             }
 
-            $fraction = (int) ($selected && $selected == $question->get_right_choice_for($stemid));
+            $fraction = (int) ($selected && $selected == $question->get_right_choice_for($subquestionid));
 
             if ($options->correctness && $selected) {
                 $classes .= ' ' . $this->feedback_class($fraction);
@@ -143,7 +153,7 @@ class qtype_randomsamatch_renderer extends qtype_with_combined_feedback_renderer
             }
 
             $result .= html_writer::tag('td',
-                    html_writer::select($choices, $qa->get_qt_field_name('sub' . $key), $selected,
+                    html_writer::select($choices, $qa->get_qt_field_name('choice' . $key), $selected,
                             array('0' => 'choose'), array('disabled' => $options->readonly)) .
                     ' ' . $feedbackimage, array('class' => $classes));
 
@@ -203,120 +213,3 @@ class qtype_randomsamatch_renderer extends qtype_with_combined_feedback_renderer
         return $this->combined_feedback($qa);
     }
 }
-
-
-/**
- * Subclass for generating the bits of output specific to multiple choice
- * single questions.
- *
- * @copyright  2009 The Open University
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-/*
-class qtype_multichoice_single_renderer extends qtype_multichoice_renderer_base {
-    protected function get_input_type() {
-        return 'radio';
-    }
-
-    protected function get_input_name(question_attempt $qa, $value) {
-        return $qa->get_qt_field_name('answer');
-    }
-
-    protected function get_input_value($value) {
-        return $value;
-    }
-
-    protected function get_input_id(question_attempt $qa, $value) {
-        return $qa->get_qt_field_name('answer' . $value);
-    }
-
-    protected function is_right(question_answer $ans) {
-        return $ans->fraction;
-    }
-
-    protected function prompt() {
-        return get_string('selectone', 'qtype_multichoice');
-    }
-
-    public function correct_response(question_attempt $qa) {
-        $question = $qa->get_question();
-
-        foreach ($question->answers as $ansid => $ans) {
-            if (question_state::graded_state_for_fraction($ans->fraction) ==
-                    question_state::$gradedright) {
-                return get_string('correctansweris', 'qtype_multichoice',
-                        $question->format_text($ans->answer, $ans->answerformat,
-                                $qa, 'question', 'answer', $ansid));
-            }
-        }
-
-        return '';
-    }
-}
-*/
-
-/**
- * Subclass for generating the bits of output specific to multiple choice
- * multi=select questions.
- *
- * @copyright  2009 The Open University
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-/*
-class qtype_multichoice_multi_renderer extends qtype_multichoice_renderer_base {
-    protected function get_input_type() {
-        return 'checkbox';
-    }
-
-    protected function get_input_name(question_attempt $qa, $value) {
-        return $qa->get_qt_field_name('choice' . $value);
-    }
-
-    protected function get_input_value($value) {
-        return 1;
-    }
-
-    protected function get_input_id(question_attempt $qa, $value) {
-        return $this->get_input_name($qa, $value);
-    }
-
-    protected function is_right(question_answer $ans) {
-        if ($ans->fraction > 0) {
-            return 1;
-        } else {
-            return 0;
-        }
-    }
-
-    protected function prompt() {
-        return get_string('selectmulti', 'qtype_multichoice');
-    }
-
-    public function correct_response(question_attempt $qa) {
-        $question = $qa->get_question();
-
-        $right = array();
-        foreach ($question->answers as $ansid => $ans) {
-            if ($ans->fraction > 0) {
-                $right[] = $question->format_text($ans->answer, $ans->answerformat,
-                        $qa, 'question', 'answer', $ansid);
-            }
-        }
-
-        if (!empty($right)) {
-                return get_string('correctansweris', 'qtype_multichoice',
-                        implode(', ', $right));
-        }
-        return '';
-    }
-
-    protected function num_parts_correct(question_attempt $qa) {
-        if ($qa->get_question()->get_num_selected_choices($qa->get_last_qt_data()) >
-                $qa->get_question()->get_num_correct_choices()) {
-            return get_string('toomanyselected', 'qtype_multichoice');
-        }
-
-        return parent::num_parts_correct($qa);
-    }
-}
-*/
