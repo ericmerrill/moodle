@@ -47,6 +47,8 @@ class qtype_randomsamatch_question extends question_graded_automatically {
     }
 
     public function create_attempt() {
+        global $DB;
+
         $this->questions = array();
 
         $categorylist = array($this->category);
@@ -75,6 +77,9 @@ class qtype_randomsamatch_question extends question_graded_automatically {
         $fullquestions = question_load_questions($questionids);
 
         foreach ($fullquestions as $key => $wrappedquestion) {
+            $files = $DB->get_records('files', array('component' => 'question', 'filearea' => 'questiontext', 'itemid' => $wrappedquestion->id));
+            $this->copy_files($files);
+
             $question = new stdClass();
             $question->name = $wrappedquestion->name;
             $question->questiontext = $wrappedquestion->questiontext;
@@ -112,6 +117,35 @@ class qtype_randomsamatch_question extends question_graded_automatically {
         $this->questionorder = swapshuffle($range);
         $answerorder = swapshuffle($range);
         $this->set_answerorder($answerorder);
+    }
+
+    protected function copy_files($files) {
+        global $COURSE;
+
+        $coursecontext = context_course::instance($COURSE->id);
+
+        if (!is_array($files)) {
+            return false;
+        }
+
+        $fs = get_file_storage();
+
+        foreach ($files as $file) {
+            if ($fs->get_file($coursecontext->id, 'qtype_randomsamatch', 'attempt_question', $this->id, '/', $file->filename)) {
+                continue;
+            }
+            
+            $new = new stdClass();
+            $new->contextid = $coursecontext->id;
+            $new->component = "qtype_randomsamatch";
+            $new->filearea = "attempt_question";
+            $new->itemid = $this->id;
+            $new->filepath = '/';
+            $new->filename = $file->filename;
+            $new->timecreated = time();
+            $new->timemodified = time();
+            $fs->create_file_from_storedfile($new, $file->id);
+        }
     }
 
     public function save_state_step(question_attempt_step $step) {
@@ -207,6 +241,23 @@ class qtype_randomsamatch_question extends question_graded_automatically {
             return parent::check_file_access($qa, $options, $component, $filearea,
                     $args, $forcedownload);
         }*/
+/* print $component.":".$filearea;die(); */
+        /*
+if ($component == 'question' && $filearea == 'answerfeedback') {
+            $currentanswer = $qa->get_last_qt_var('answer');
+            $answer = $qa->get_question()->get_matching_answer(array('answer' => $currentanswer));
+            $answerid = reset($args); // itemid is answer id.
+            return $options->feedback && $answerid == $answer->id;
+
+        } else if ($component == 'question' && $filearea == 'hint') {
+            return $this->check_hint_file_access($qa, $options, $args);
+
+        } else {
+            return parent::check_file_access($qa, $options, $component, $filearea,
+                    $args, $forcedownload);
+        }
+*/
+
     }
 
     public function get_min_fraction() {

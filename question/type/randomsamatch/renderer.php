@@ -74,7 +74,7 @@ class qtype_randomsamatch_renderer extends qtype_with_combined_feedback_renderer
             $subq = $question->get_question($questionid);
             $right[] = $question->format_text($subq->questiontext,
                     $subq->questiontextformat, $qa,
-                    'qtype_ransomsamatch', 'subquestion', $questionid) . ' – ' .
+                    'qtype_randomsamatch', 'attempt_question', $question->id) . ' – ' .
                     $answers[$question->get_right_choice_for($questionid)];
         }
 
@@ -133,7 +133,7 @@ class qtype_randomsamatch_renderer extends qtype_with_combined_feedback_renderer
 
             $result .= html_writer::tag('td', $question->format_text(
                     $subquestion->questiontext, $subquestion->questiontextformat,
-                    $qa, 'qtype_match', 'subquestion', $subquestionid),
+                    $qa, 'qtype_randomsamatch', 'attempt_question', $question->id),
                     array('class' => 'text'));
 
             $classes = 'control';
