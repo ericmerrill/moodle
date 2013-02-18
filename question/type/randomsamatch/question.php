@@ -15,17 +15,6 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 class qtype_randomsamatch_question extends question_graded_automatically {
-    /*const LAYOUT_DROPDOWN = 0;
-    const LAYOUT_VERTICAL = 1;
-    const LAYOUT_HORIZONTAL = 2;
-
-    public $answers;
-
-    public $shuffleanswers;
-    public $answernumbering;
-    public $layout = self::LAYOUT_VERTICAL;
-    */
-
     public $correctfeedback;
     public $correctfeedbackformat;
     public $partiallycorrectfeedback;
