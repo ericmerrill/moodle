@@ -1826,11 +1826,10 @@ class workshop {
             $sql = "SELECT a.id AS assessmentid, a.submissionid, a.grade, a.gradinggrade, a.gradinggradeover, a.reviewerid, a.weight,
                            s.id AS submissionid,
                            e.id AS authorid, e.lastname, e.firstname, e.picture, e.imagealt, e.email
-                      FROM {user} u
-                      JOIN {workshop_assessments} a ON (a.reviewerid = u.id)
+                      FROM {workshop_assessments} a
                       JOIN {workshop_submissions} s ON (a.submissionid = s.id AND s.example = 0)
                       JOIN {user} e ON (s.authorid = e.id)
-                     WHERE u.id $participantids AND s.workshopid = :workshopid
+                     WHERE a.reviewerid $participantids AND s.workshopid = :workshopid
                   ORDER BY a.weight DESC, $sort";
             $reviewees = $DB->get_records_sql($sql, array_merge($params, $sortparams));
             foreach ($reviewees as $reviewee) {
