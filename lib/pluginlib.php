@@ -97,14 +97,14 @@ class plugin_manager {
     }
 
     /**
-     * Returns the result of {@link get_plugin_types()} ordered for humans
+     * Returns the result of {@link core_component::get_plugin_types()} ordered for humans
      *
      * @see self::reorder_plugin_types()
      * @param bool $fullpaths false means relative paths from dirroot
      * @return array (string)name => (string)location
      */
     public function get_plugin_types($fullpaths = true) {
-        return $this->reorder_plugin_types(get_plugin_types($fullpaths));
+        return $this->reorder_plugin_types(core_component::get_plugin_types($fullpaths));
     }
 
     /**
@@ -143,8 +143,8 @@ class plugin_manager {
             // Hack: include mod and editor subplugin management classes first,
             //       the adminlib.php is supposed to contain extra admin settings too.
             require_once($CFG->libdir.'/adminlib.php');
-            foreach(array('mod', 'editor') as $type) {
-                foreach (get_plugin_list($type) as $dir) {
+            foreach (core_component::get_plugin_types_with_subplugins() as $type => $ignored) {
+                foreach (core_component::get_plugin_list($type) as $dir) {
                     if (file_exists("$dir/adminlib.php")) {
                         include_once("$dir/adminlib.php");
                     }
@@ -221,8 +221,6 @@ class plugin_manager {
      * Returns list of plugins that define their subplugins and the information
      * about them from the db/subplugins.php file.
      *
-     * At the moment, only activity modules and editors can define subplugins.
-     *
      * @param bool $disablecache force reload, cache can be used otherwise
      * @return array with keys like 'mod_quiz', and values the data from the
      *      corresponding db/subplugins.php file.
@@ -231,9 +229,8 @@ class plugin_manager {
 
         if ($disablecache or is_null($this->subpluginsinfo)) {
             $this->subpluginsinfo = array();
-            foreach (array('mod', 'editor') as $type) {
-                $owners = get_plugin_list($type);
-                foreach ($owners as $component => $ownerdir) {
+            foreach (core_component::get_plugin_types_with_subplugins() as $type => $ignored) {
+                foreach (core_component::get_plugin_list($type) as $component => $ownerdir) {
                     $componentsubplugins = array();
                     if (file_exists($ownerdir . '/db/subplugins.php')) {
                         $subplugins = array();
@@ -521,6 +518,26 @@ class plugin_manager {
     }
 
     /**
+     * Returns uninstall URL if exists.
+     *
+     * @param string $component
+     * @return moodle_url uninstall URL, null if uninstall not supported
+     */
+    public function get_uninstall_url($component) {
+        if (!$this->can_uninstall_plugin($component)) {
+            return null;
+        }
+
+        $pluginfo = $this->get_plugin_info($component);
+
+        if (is_null($pluginfo)) {
+            return null;
+        }
+
+        return $pluginfo->get_uninstall_url();
+    }
+
+    /**
      * Uninstall the given plugin.
      *
      * Automatically cleans-up all remaining configuration data, log records, events,
@@ -619,6 +636,7 @@ class plugin_manager {
         // Moodle 2.3 supports upgrades from 2.2.x only.
         $plugins = array(
             'qformat' => array('blackboard'),
+            'enrol' => array('authorize'),
         );
 
         if (!isset($plugins[$type])) {
@@ -698,7 +716,7 @@ class plugin_manager {
             ),
 
             'enrol' => array(
-                'authorize', 'category', 'cohort', 'database', 'flatfile',
+                'category', 'cohort', 'database', 'flatfile',
                 'guest', 'imsenterprise', 'ldap', 'manual', 'meta', 'mnet',
                 'paypal', 'self'
             ),
@@ -710,7 +728,7 @@ class plugin_manager {
             ),
 
             'format' => array(
-                'scorm', 'social', 'topics', 'weeks'
+                'scorm', 'singleactivity', 'social', 'topics', 'weeks'
             ),
 
             'gradeexport' => array(
@@ -792,20 +810,22 @@ class plugin_manager {
             ),
 
             'repository' => array(
-                'alfresco', 'boxnet', 'coursefiles', 'dropbox', 'equella', 'filesystem',
+                'alfresco', 'areafiles', 'boxnet', 'coursefiles', 'dropbox', 'equella', 'filesystem',
                 'flickr', 'flickr_public', 'googledocs', 'local', 'merlot',
-                'picasa', 'recent', 's3', 'upload', 'url', 'user', 'webdav',
+                'picasa', 'recent', 'skydrive', 's3', 'upload', 'url', 'user', 'webdav',
                 'wikimedia', 'youtube'
             ),
 
             'scormreport' => array(
                 'basic',
                 'interactions',
-                'graphs'
+                'graphs',
+                'objectives'
             ),
 
             'tinymce' => array(
-                'ctrlhelp', 'dragmath', 'moodleemoticon', 'moodleimage', 'moodlemedia', 'moodlenolink', 'spellchecker',
+                'ctrlhelp', 'dragmath', 'managefiles', 'moodleemoticon', 'moodleimage',
+                'moodlemedia', 'moodlenolink', 'pdw', 'spellchecker', 'wrap'
             ),
 
             'theme' => array(
@@ -821,7 +841,7 @@ class plugin_manager {
                 'dbtransfer', 'generator', 'health', 'innodb', 'installaddon',
                 'langimport', 'multilangupgrade', 'phpunit', 'profiling',
                 'qeupgradehelper', 'replace', 'spamcleaner', 'timezoneimport',
-                'unittest', 'uploaduser', 'unsuproles', 'xmldb'
+                'unittest', 'uploadcourse', 'uploaduser', 'unsuproles', 'xmldb'
             ),
 
             'webservice' => array(
@@ -849,7 +869,7 @@ class plugin_manager {
     }
 
     /**
-     * Wrapper for the core function {@link normalize_component()}.
+     * Wrapper for the core function {@link core_component::normalize_component()}.
      *
      * This is here just to make it possible to mock it in unit tests.
      *
@@ -857,13 +877,13 @@ class plugin_manager {
      * @return array
      */
     protected function normalize_component($component) {
-        return normalize_component($component);
+        return core_component::normalize_component($component);
     }
 
     /**
      * Reorders plugin types into a sequence to be displayed
      *
-     * For technical reasons, plugin types returned by {@link get_plugin_types()} are
+     * For technical reasons, plugin types returned by {@link core_component::get_plugin_types()} are
      * in a certain order that does not need to fit the expected order for the display.
      * Particularly, activity modules should be displayed first as they represent the
      * real heart of Moodle. They should be followed by other plugin types that are
@@ -1600,7 +1620,7 @@ class available_update_checker {
                             // is a real update with higher version. That is, the $componentchange
                             // is present in the array of {@link available_update_info} objects
                             // returned by the plugin's available_updates() method.
-                            list($plugintype, $pluginname) = normalize_component($component);
+                            list($plugintype, $pluginname) = core_component::normalize_component($component);
                             if (!empty($plugins[$plugintype][$pluginname])) {
                                 $availableupdates = $plugins[$plugintype][$pluginname]->available_updates();
                                 if (!empty($availableupdates)) {
@@ -1954,8 +1974,8 @@ class available_update_deployer {
      */
     public function plugin_external_source(available_update_info $info) {
 
-        $paths = get_plugin_types(true);
-        list($plugintype, $pluginname) = normalize_component($info->component);
+        $paths = core_component::get_plugin_types();
+        list($plugintype, $pluginname) = core_component::normalize_component($info->component);
         $pluginroot = $paths[$plugintype].'/'.$pluginname;
 
         if (is_dir($pluginroot.'/.git')) {
@@ -2012,9 +2032,9 @@ class available_update_deployer {
             throw new coding_exception('Illegal method call - deployer not initialized.');
         }
 
-        $pluginrootpaths = get_plugin_types(true);
+        $pluginrootpaths = core_component::get_plugin_types();
 
-        list($plugintype, $pluginname) = normalize_component($info->component);
+        list($plugintype, $pluginname) = core_component::normalize_component($info->component);
 
         if (empty($pluginrootpaths[$plugintype])) {
             throw new coding_exception('Unknown plugin type root location', $plugintype);
@@ -2185,6 +2205,7 @@ class available_update_deployer {
 
             if (!file_exists($filepath)) {
                 $success = file_put_contents($filepath, $password . PHP_EOL . $now . PHP_EOL, LOCK_EX);
+                chmod($filepath, $CFG->filepermissions);
             }
         }
 
@@ -2283,9 +2304,9 @@ class available_update_deployer {
      */
     protected function component_writable($component) {
 
-        list($plugintype, $pluginname) = normalize_component($component);
+        list($plugintype, $pluginname) = core_component::normalize_component($component);
 
-        $directory = get_plugin_directory($plugintype, $pluginname);
+        $directory = core_component::get_plugin_directory($plugintype, $pluginname);
 
         if (is_null($directory)) {
             throw new coding_exception('Unknown component location', $component);
@@ -2441,7 +2462,7 @@ abstract class plugininfo_base {
     public static function get_plugins($type, $typerootdir, $typeclass) {
 
         // get the information about plugins at the disk
-        $plugins = get_plugin_list($type);
+        $plugins = core_component::get_plugin_list($type);
         $ondisk = array();
         foreach ($plugins as $pluginname => $pluginrootdir) {
             $ondisk[$pluginname] = plugininfo_default_factory::make($type, $typerootdir,
@@ -2826,6 +2847,15 @@ abstract class plugininfo_base {
     }
 
     /**
+     * Optional extra warning before uninstallation, for example number of uses in courses.
+     *
+     * @return string
+     */
+    public function get_uninstall_extra_warning() {
+        return '';
+    }
+
+    /**
      * Returns the URL of the screen where this plugin can be uninstalled
      *
      * Visiting that URL must be safe, that is a manual confirmation is needed
@@ -3048,9 +3078,19 @@ class plugininfo_block extends plugininfo_base {
         return true;
     }
 
-    public function get_uninstall_url() {
-        $blocksinfo = self::get_blocks_info();
-        return new moodle_url('/admin/blocks.php', array('delete' => $blocksinfo[$this->name]->id, 'sesskey' => sesskey()));
+    /**
+     * Warnign with number of block instances.
+     *
+     * @return string
+     */
+    public function get_uninstall_extra_warning() {
+        global $DB;
+
+        if (!$count = $DB->count_records('block_instances', array('blockname'=>$this->name))) {
+            return '';
+        }
+
+        return '<p>'.get_string('uninstallextraconfirmblock', 'core_plugin', array('instances'=>$count)).'</p>';
     }
 
     /**
@@ -3384,8 +3424,32 @@ class plugininfo_mod extends plugininfo_base {
         }
     }
 
-    public function get_uninstall_url() {
-        return new moodle_url('/admin/modules.php', array('delete' => $this->name, 'sesskey' => sesskey()));
+    /**
+     * Return warning with number of activities and number of affected courses.
+     *
+     * @return string
+     */
+    public function get_uninstall_extra_warning() {
+        global $DB;
+
+        if (!$module = $DB->get_record('modules', array('name'=>$this->name))) {
+            return '';
+        }
+
+        if (!$count = $DB->count_records('course_modules', array('module'=>$module->id))) {
+            return '';
+        }
+
+        $sql = "SELECT COUNT('x')
+                  FROM (
+                    SELECT course
+                      FROM {course_modules}
+                     WHERE module = :mid
+                  GROUP BY course
+                  ) c";
+        $courses = $DB->count_records_sql($sql, array('mid'=>$module->id));
+
+        return '<p>'.get_string('uninstallextraconfirmmod', 'core_plugin', array('instances'=>$count, 'courses'=>$courses)).'</p>';
     }
 
     /**
@@ -3566,11 +3630,38 @@ class plugininfo_enrol extends plugininfo_base {
     }
 
     public function is_uninstall_allowed() {
+        if ($this->name === 'manual') {
+            return false;
+        }
         return true;
     }
 
-    public function get_uninstall_url() {
-        return new moodle_url('/admin/enrol.php', array('action' => 'uninstall', 'enrol' => $this->name, 'sesskey' => sesskey()));
+    /**
+     * Return warning with number of activities and number of affected courses.
+     *
+     * @return string
+     */
+    public function get_uninstall_extra_warning() {
+        global $DB, $OUTPUT;
+
+        $sql = "SELECT COUNT('x')
+                  FROM {user_enrolments} ue
+                  JOIN {enrol} e ON e.id = ue.enrolid
+                 WHERE e.enrol = :plugin";
+        $count = $DB->count_records_sql($sql, array('plugin'=>$this->name));
+
+        if (!$count) {
+            return '';
+        }
+
+        $migrateurl = new moodle_url('/admin/enrol.php', array('action'=>'migrate', 'enrol'=>$this->name, 'sesskey'=>sesskey()));
+        $migrate = new single_button($migrateurl, get_string('migratetomanual', 'core_enrol'));
+        $button = $OUTPUT->render($migrate);
+
+        $result = '<p>'.get_string('uninstallextraconfirmenrol', 'core_plugin', array('enrolments'=>$count)).'</p>';
+        $result .= $button;
+
+        return $result;
     }
 }
 
@@ -3781,10 +3872,6 @@ class plugininfo_tool extends plugininfo_base {
     public function is_uninstall_allowed() {
         return true;
     }
-
-    public function get_uninstall_url() {
-        return new moodle_url('/admin/tools.php', array('delete' => $this->name, 'sesskey' => sesskey()));
-    }
 }
 
 
@@ -3796,10 +3883,6 @@ class plugininfo_report extends plugininfo_base {
     public function is_uninstall_allowed() {
         return true;
     }
-
-    public function get_uninstall_url() {
-        return new moodle_url('/admin/reports.php', array('delete' => $this->name, 'sesskey' => sesskey()));
-    }
 }
 
 
@@ -3808,8 +3891,8 @@ class plugininfo_report extends plugininfo_base {
  */
 class plugininfo_local extends plugininfo_base {
 
-    public function get_uninstall_url() {
-        return new moodle_url('/admin/localplugins.php', array('delete' => $this->name, 'sesskey' => sesskey()));
+    public function is_uninstall_allowed() {
+        return true;
     }
 }
 
@@ -3836,6 +3919,17 @@ class plugininfo_editor extends plugininfo_base {
         }
         if ($settings) {
             $ADMIN->add($parentnodename, $settings);
+        }
+    }
+
+    /**
+     * Basic textarea editor can not be uninstalled.
+     */
+    public function is_uninstall_allowed() {
+        if ($this->name === 'textarea') {
+            return false;
+        } else {
+            return true;
         }
     }
 
@@ -3879,6 +3973,10 @@ class plugininfo_plagiarism extends plugininfo_base {
                     $settingsurl, 'moodle/site:config', $this->is_enabled() === false);
             $adminroot->add($parentnodename, $settings);
         }
+    }
+
+    public function is_uninstall_allowed() {
+        return true;
     }
 }
 
@@ -3982,8 +4080,21 @@ class plugininfo_format extends plugininfo_base {
         }
     }
 
-    public function get_uninstall_url() {
-        return new moodle_url('/admin/courseformats.php',
-                array('sesskey' => sesskey(), 'action' => 'uninstall', 'format' => $this->name));
+    public function get_uninstall_extra_warning() {
+        global $DB;
+
+        $coursecount = $DB->count_records('course', array('format' => $this->name));
+
+        if (!$coursecount) {
+            return '';
+        }
+
+        $defaultformat = $this->get_plugin_manager()->plugin_name('format_'.get_config('moodlecourse', 'format'));
+        $message = get_string(
+            'formatuninstallwithcourses', 'core_admin',
+            (object)array('count' => $coursecount, 'format' => $this->displayname,
+            'defaultformat' => $defaultformat));
+
+        return $message;
     }
 }

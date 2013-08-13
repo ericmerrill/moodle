@@ -108,7 +108,6 @@ class badge {
     public $timemodified;
     public $usercreated;
     public $usermodified;
-    public $image;
     public $issuername;
     public $issuerurl;
     public $issuercontact;
@@ -241,7 +240,6 @@ class badge {
 
         $fordb->name = get_string('copyof', 'badges', $this->name);
         $fordb->status = BADGE_STATUS_INACTIVE;
-        $fordb->image = 0;
         $fordb->usercreated = $USER->id;
         $fordb->usermodified = $USER->id;
         $fordb->timecreated = time();
@@ -620,8 +618,10 @@ function badges_notify_badge_award(badge $badge, $userid, $issued, $filepathhash
     $userfrom = new stdClass();
     $userfrom->id = $admin->id;
     $userfrom->email = !empty($CFG->badges_defaultissuercontact) ? $CFG->badges_defaultissuercontact : $admin->email;
+    foreach (get_all_user_name_fields() as $addname) {
+        $userfrom->$addname = !empty($CFG->badges_defaultissuername) ? '' : $admin->$addname;
+    }
     $userfrom->firstname = !empty($CFG->badges_defaultissuername) ? $CFG->badges_defaultissuername : $admin->firstname;
-    $userfrom->lastname = !empty($CFG->badges_defaultissuername) ? '' : $admin->lastname;
     $userfrom->maildisplay = true;
 
     $issuedlink = html_writer::link(new moodle_url('/badges/badge.php', array('hash' => $issued)), $badge->name);
@@ -903,7 +903,7 @@ function badges_add_course_navigation(navigation_node $coursenode, stdClass $cou
                     new pix_icon('i/badge', get_string('coursebadges', 'badges')));
 
             if (has_capability('moodle/badges:viewawarded', $coursecontext)) {
-                $url = new moodle_url($CFG->wwwroot . '/badges/index.php',
+                $url = new moodle_url('/badges/index.php',
                         array('type' => BADGE_TYPE_COURSE, 'id' => $course->id));
 
                 $coursenode->get('coursebadges')->add(get_string('managebadges', 'badges'), $url,
@@ -911,12 +911,22 @@ function badges_add_course_navigation(navigation_node $coursenode, stdClass $cou
             }
 
             if (has_capability('moodle/badges:createbadge', $coursecontext)) {
-                $url = new moodle_url($CFG->wwwroot . '/badges/newbadge.php',
+                $url = new moodle_url('/badges/newbadge.php',
                         array('type' => BADGE_TYPE_COURSE, 'id' => $course->id));
 
                 $coursenode->get('coursebadges')->add(get_string('newbadge', 'badges'), $url,
                         navigation_node::TYPE_SETTING, null, 'newbadge');
             }
+        } else if (has_capability('moodle/badges:awardbadge', $coursecontext)) {
+            $coursenode->add(get_string('coursebadges', 'badges'), null,
+                    navigation_node::TYPE_CONTAINER, null, 'coursebadges',
+                    new pix_icon('i/badge', get_string('coursebadges', 'badges')));
+
+            $url = new moodle_url('/badges/index.php',
+                    array('type' => BADGE_TYPE_COURSE, 'id' => $course->id));
+
+            $coursenode->get('coursebadges')->add(get_string('managebadges', 'badges'), $url,
+                    navigation_node::TYPE_SETTING, null, 'coursebadges');
         }
     }
 }
@@ -1071,10 +1081,7 @@ function badges_process_badge_image(badge $badge, $iconfile) {
     require_once($CFG->libdir. '/gdlib.php');
 
     if (!empty($CFG->gdversion)) {
-        if ($fileid = (int)process_new_icon($badge->get_context(), 'badges', 'badgeimage', $badge->id, $iconfile)) {
-            $badge->image = $fileid;
-            $badge->save();
-        }
+        process_new_icon($badge->get_context(), 'badges', 'badgeimage', $badge->id, $iconfile);
         @unlink($iconfile);
 
         // Clean up file draft area after badge image has been saved.
@@ -1336,5 +1343,21 @@ function badges_handle_course_deletion($courseid) {
         $toupdate->courseid = null;
         $toupdate->status = BADGE_STATUS_ARCHIVED;
         $DB->update_record('badge', $toupdate);
+    }
+}
+
+/**
+ * Loads JS files required for backpack support.
+ *
+ * @uses   $CFG, $PAGE
+ * @return void
+ */
+function badges_setup_backpack_js() {
+    global $CFG, $PAGE;
+    if (!empty($CFG->badges_allowexternalbackpack)) {
+        $PAGE->requires->string_for_js('error:backpackproblem', 'badges');
+        $protocol = (strpos($CFG->wwwroot, 'https://') === 0) ? 'https://' : 'http://';
+        $PAGE->requires->js(new moodle_url($protocol . 'backpack.openbadges.org/issuer.js'), true);
+        $PAGE->requires->js('/badges/backpack.js', true);
     }
 }

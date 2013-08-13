@@ -38,7 +38,7 @@ $CFG = new stdClass();
 // will be stored.  This database must already have been created         //
 // and a username/password created to access it.                         //
 
-$CFG->dbtype    = 'pgsql';      // 'pgsql', 'mysqli', 'mssql', 'sqlsrv' or 'oci'
+$CFG->dbtype    = 'pgsql';      // 'pgsql', 'mariadb', 'mysqli', 'mssql', 'sqlsrv' or 'oci'
 $CFG->dblibrary = 'native';     // 'native' only at the moment
 $CFG->dbhost    = 'localhost';  // eg 'localhost' or 'db.isp.com' or IP
 $CFG->dbname    = 'moodle';     // database name, eg moodle
@@ -111,9 +111,11 @@ $CFG->directorypermissions = 02777;
 //=========================================================================
 // A very few webhosts use /admin as a special URL for you to access a
 // control panel or something.  Unfortunately this conflicts with the
-// standard location for the Moodle admin pages.  You can fix this by
-// renaming the admin directory in your installation, and putting that
-// new name here.  eg "moodleadmin".  This will fix admin links in Moodle.
+// standard location for the Moodle admin pages.  You can work around this
+// by renaming the admin directory in your installation, and putting that
+// new name here.  eg "moodleadmin".  This should fix all admin links in Moodle.
+// After any change you need to visit your new admin directory
+// and purge all caches.
 
 $CFG->admin = 'admin';
 
@@ -211,6 +213,7 @@ $CFG->admin = 'admin';
 //     $CFG->xsendfilealiases = array(
 //         '/dataroot/' => $CFG->dataroot,
 //         '/cachedir/' => '/var/www/moodle/cache',    // for custom $CFG->cachedir locations
+//         '/localcachedir/' => '/var/local/cache',    // for custom $CFG->localcachedir locations
 //         '/tempdir/'  => '/var/www/moodle/temp',     // for custom $CFG->tempdir locations
 //         '/filedir'   => '/var/www/moodle/filedir',  // for custom $CFG->filedir locations
 //     );
@@ -351,10 +354,12 @@ $CFG->admin = 'admin';
 //
 // It is possible to specify different cache and temp directories, use local fast filesystem
 // for normal web servers. Server clusters MUST use shared filesystem for cachedir!
+// Localcachedir is intended for server clusters, it does not have to be shared by cluster nodes.
 // The directories must not be accessible via web.
 //
-//     $CFG->tempdir = '/var/www/moodle/temp';
-//     $CFG->cachedir = '/var/www/moodle/cache';
+//     $CFG->tempdir = '/var/www/moodle/temp';        // Files used during one HTTP request only.
+//     $CFG->cachedir = '/var/www/moodle/cache';      // Directory MUST BE SHARED by all cluster nodes, locking required.
+//     $CFG->localcachedir = '/var/local/cache';      // Intended for local node caching.
 //
 // Some filesystems such as NFS may not support file locking operations.
 // Locking resolves race conditions and is strongly recommended for production servers.
@@ -390,7 +395,7 @@ $CFG->admin = 'admin';
 // memory limit to something higher.
 // The value for the settings should be a valid PHP memory value. e.g. 512M, 1G
 //
-//     $CFG->extramemorylimit = '1G';
+//     $CFG->extramemorylimit = '1024M';
 //
 // Moodle 2.4 introduced a new cache API.
 // The cache API stores a configuration file within the Moodle data directory and
@@ -629,6 +634,11 @@ $CFG->admin = 'admin';
 // Example:
 //   $CFG->behat_restart_browser_after = 7200;     // Restarts the browser session after 2 hours
 //
+// All this page's extra Moodle settings are compared against a white list of allowed settings
+// (the basic and behat_* ones) to avoid problems with production environments. This setting can be
+// used to expand the default white list with an array of extra settings.
+// Example:
+//   $CFG->behat_extraallowedsettings = array('logsql', 'dblogerror');
 
 //=========================================================================
 // ALL DONE!  To continue installation, visit your main page with a browser

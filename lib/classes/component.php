@@ -22,14 +22,16 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+defined('MOODLE_INTERNAL') || die();
+
 /**
  * Collection of components related methods.
  */
 class core_component {
     /** @var array list of ignored directories - watch out for auth/db exception */
-    protected static $ignoreddirs = array('CVS'=>true, '_vti_cnf'=>true, 'simpletest'=>true, 'db'=>true, 'yui'=>true, 'tests'=>true, 'classes'=>true);
+    protected static $ignoreddirs = array('CVS'=>true, '_vti_cnf'=>true, 'simpletest'=>true, 'db'=>true, 'yui'=>true, 'tests'=>true, 'classes'=>true, 'fonts'=>true);
     /** @var array list plugin types that support subplugins, do not add more here unless absolutely necessary */
-    protected static $supportsubplugins = array('mod', 'editor');
+    protected static $supportsubplugins = array('mod', 'editor', 'local');
 
     /** @var null cache of plugin types */
     protected static $plugintypes = null;
@@ -79,20 +81,44 @@ class core_component {
             return;
         }
 
-        if (PHPUNIT_TEST or !empty($CFG->early_install_lang) or
-                (defined('BEHAT_UTIL') and BEHAT_UTIL) or
-                (defined('BEHAT_TEST') and BEHAT_TEST)) {
-            // 1/ Do not bother storing the file for unit tests,
-            //    we need fresh copy for each execution and
-            //    later we keep it in memory.
-            // 2/ We can not write to dataroot in installer yet.
+        if (defined('IGNORE_COMPONENT_CACHE') and IGNORE_COMPONENT_CACHE) {
             self::fill_all_caches();
             return;
         }
 
-        // Note: cachedir MUST be shared by all servers in a cluster, sorry guys...
-        //       MUC should use classloading, we can not depend on it here.
-        $cachefile = "$CFG->cachedir/core_component.php";
+        if (!empty($CFG->alternative_component_cache)) {
+            // Hack for heavily clustered sites that want to manage component cache invalidation manually.
+            $cachefile = $CFG->alternative_component_cache;
+
+            if (file_exists($cachefile)) {
+                if (CACHE_DISABLE_ALL) {
+                    // Verify the cache state only on upgrade pages.
+                    $content = self::get_cache_content();
+                    if (sha1_file($cachefile) !== sha1($content)) {
+                        die('Outdated component cache file defined in $CFG->alternative_component_cache, can not continue');
+                    }
+                    return;
+                }
+                $cache = array();
+                include($cachefile);
+                self::$plugintypes = $cache['plugintypes'];
+                self::$plugins     = $cache['plugins'];
+                self::$subsystems  = $cache['subsystems'];
+                self::$classmap    = $cache['classmap'];
+                return;
+            }
+
+            if (!is_writable(dirname($cachefile))) {
+                die('Can not create alternative component cache file defined in $CFG->alternative_component_cache, can not continue');
+            }
+
+            // Lets try to create the file, it might be in some writable directory or a local cache dir.
+
+        } else {
+            // Note: $CFG->cachedir MUST be shared by all servers in a cluster,
+            //       use $CFG->alternative_component_cache if you do not like it.
+            $cachefile = "$CFG->cachedir/core_component.php";
+        }
 
         if (!CACHE_DISABLE_ALL and !self::is_developer()) {
             // 1/ Use the cache only outside of install and upgrade.
@@ -105,7 +131,7 @@ class core_component {
                 } else if (!isset($cache['plugintypes']) or !isset($cache['plugins']) or !isset($cache['subsystems']) or !isset($cache['classmap'])) {
                     // Something is very wrong.
                 } else if ($cache['plugintypes']['mod'] !== "$CFG->dirroot/mod") {
-                    // Dirroot was changed.
+                    // $CFG->dirroot was changed.
                 } else {
                     // The cache looks ok, let's use it.
                     self::$plugintypes = $cache['plugintypes'];
@@ -114,17 +140,12 @@ class core_component {
                     self::$classmap    = $cache['classmap'];
                     return;
                 }
+                // Note: we do not verify $CFG->admin here intentionally,
+                //       they must visit admin/index.php after any change.
             }
         }
 
-        $cachedir = dirname($cachefile);
-        if (!is_dir($cachedir)) {
-            mkdir($cachedir, $CFG->directorypermissions, true);
-        }
-
         if (!isset(self::$plugintypes)) {
-            self::fill_all_caches();
-
             // This needs to be atomic and self-fixing as much as possible.
 
             $content = self::get_cache_content();
@@ -132,16 +153,28 @@ class core_component {
                 if (sha1_file($cachefile) === sha1($content)) {
                     return;
                 }
+                // Stale cache detected!
                 unlink($cachefile);
+            }
+
+            // Permissions might not be setup properly in installers.
+            $dirpermissions = !isset($CFG->directorypermissions) ? 02777 : $CFG->directorypermissions;
+            $filepermissions = !isset($CFG->filepermissions) ? ($dirpermissions & 0666) : $CFG->filepermissions;
+
+            clearstatcache();
+            $cachedir = dirname($cachefile);
+            if (!is_dir($cachedir)) {
+                mkdir($cachedir, $dirpermissions, true);
             }
 
             if ($fp = @fopen($cachefile.'.tmp', 'xb')) {
                 fwrite($fp, $content);
                 fclose($fp);
                 @rename($cachefile.'.tmp', $cachefile);
-                @chmod($cachefile, $CFG->filepermissions);
+                @chmod($cachefile, $filepermissions);
             }
             @unlink($cachefile.'.tmp'); // Just in case anything fails (race condition).
+            self::invalidate_opcode_php_cache($cachefile);
         }
     }
 
@@ -156,11 +189,16 @@ class core_component {
     protected static function is_developer() {
         global $CFG;
 
-        if (!isset($CFG->config_php_settings['debug'])) {
+        if (isset($CFG->config_php_settings['debug'])) {
+            // Standard moodle script.
+            $debug = (int)$CFG->config_php_settings['debug'];
+        } else if (isset($CFG->debug)) {
+            // Usually script with ABORT_AFTER_CONFIG.
+            $debug = (int)$CFG->debug;
+        } else {
             return false;
         }
 
-        $debug = (int)$CFG->config_php_settings['debug'];
         if ($debug & E_ALL and $debug & E_STRICT) {
             return true;
         }
@@ -171,9 +209,15 @@ class core_component {
     /**
      * Create cache file content.
      *
+     * @private this is intended for $CFG->alternative_component_cache only.
+     *
      * @return string
      */
-    protected static function get_cache_content() {
+    public static function get_cache_content() {
+        if (!isset(self::$plugintypes)) {
+            self::fill_all_caches();
+        }
+
         $cache = array(
             'subsystems'  => self::$subsystems,
             'plugintypes' => self::$plugintypes,
@@ -230,7 +274,6 @@ $cache = '.var_export($cache, true).';
             'currencies'  => null,
             'dbtransfer'  => null,
             'debug'       => null,
-            'dock'        => null,
             'editor'      => $CFG->dirroot.'/lib/editor',
             'edufields'   => null,
             'enrol'       => $CFG->dirroot.'/enrol',
@@ -326,29 +369,69 @@ $cache = '.var_export($cache, true).';
         }
 
         foreach (self::$supportsubplugins as $type) {
-            $subpluginowners = self::fetch_plugins($type, $types[$type]);
-            foreach ($subpluginowners as $ownerdir) {
-                if (file_exists("$ownerdir/db/subplugins.php")) {
-                    $subplugins = array();
-                    include("$ownerdir/db/subplugins.php");
-                    foreach ($subplugins as $subtype => $dir) {
-                        if (!preg_match('/^[a-z][a-z0-9]*$/', $subtype)) {
-                            error_log("Invalid subtype '$subtype'' detected in '$ownerdir', invalid characters present.");
-                            continue;
-                        }
-                        if (isset(self::$subsystems[$subtype])) {
-                            error_log("Invalid subtype '$subtype'' detected in '$ownerdir', duplicates core subsystem.");
-                            continue;
-                        }
-                        $types[$subtype] = $CFG->dirroot.'/'.$dir;
-                    }
+            if ($type === 'local') {
+                // Local subplugins must be after local plugins.
+                continue;
+            }
+            $subplugins = self::fetch_subplugins($type, $types[$type]);
+            foreach($subplugins as $subtype => $subplugin) {
+                if (isset($types[$subtype])) {
+                    error_log("Invalid subtype '$subtype', duplicate detected.");
+                    continue;
                 }
+                $types[$subtype] = $subplugin;
             }
         }
 
         // Local is always last!
         $types['local'] = $CFG->dirroot.'/local';
 
+        if (in_array('local', self::$supportsubplugins)) {
+            $subplugins = self::fetch_subplugins('local', $types['local']);
+            foreach($subplugins as $subtype => $subplugin) {
+                if (isset($types[$subtype])) {
+                    error_log("Invalid subtype '$subtype', duplicate detected.");
+                    continue;
+                }
+                $types[$subtype] = $subplugin;
+            }
+        }
+
+        return $types;
+    }
+
+    /**
+     * Returns list of subtypes defined in given plugin type.
+     * @param string $type
+     * @param string $fulldir
+     * @return array
+     */
+    protected static function fetch_subplugins($type, $fulldir) {
+        global $CFG;
+
+        $types = array();
+        $subpluginowners = self::fetch_plugins($type, $fulldir);
+        foreach ($subpluginowners as $ownerdir) {
+            if (file_exists("$ownerdir/db/subplugins.php")) {
+                $subplugins = array();
+                include("$ownerdir/db/subplugins.php");
+                foreach ($subplugins as $subtype => $dir) {
+                    if (!preg_match('/^[a-z][a-z0-9]*$/', $subtype)) {
+                        error_log("Invalid subtype '$subtype'' detected in '$ownerdir', invalid characters present.");
+                        continue;
+                    }
+                    if (isset(self::$subsystems[$subtype])) {
+                        error_log("Invalid subtype '$subtype'' detected in '$ownerdir', duplicates core subsystem.");
+                        continue;
+                    }
+                    if (!is_dir("$CFG->dirroot/$dir")) {
+                        error_log("Invalid subtype directory '$dir' detected in '$ownerdir'.");
+                        continue;
+                    }
+                    $types[$subtype] = "$CFG->dirroot/$dir";
+                }
+            }
+        }
         return $types;
     }
 
@@ -420,9 +503,9 @@ $cache = '.var_export($cache, true).';
             }
         }
 
-        // Note: Add a few extra legacy classes here if necessary.
-        //self::$classmap['textlib'] = "$CFG->dirroot/lib/textlib.class.php";
-        //self::$classmap['collatorlib'] = "$CFG->dirroot/lib/textlib.class.php";
+        // Note: Add extra deprecated legacy classes here as necessary.
+        self::$classmap['textlib'] = "$CFG->dirroot/lib/classes/text.php";
+        self::$classmap['collatorlib'] = "$CFG->dirroot/lib/classes/collator.php";
     }
 
     /**
@@ -680,5 +763,36 @@ $cache = '.var_export($cache, true).';
         }
 
         return self::get_plugin_directory($type, $plugin);
+    }
+
+    /**
+     * Returns list of plugin types that allow subplugins.
+     * @return array as (string)plugintype => (string)fulldir
+     */
+    public static function get_plugin_types_with_subplugins() {
+        self::init();
+
+        $return = array();
+        foreach (self::$supportsubplugins as $type) {
+            $return[$type] = self::$plugintypes[$type];
+        }
+        return $return;
+    }
+
+    /**
+     * Invalidate opcode cache for given file, this is intended for
+     * php files that are stored in dataroot.
+     *
+     * Note: we need it here because this class must be self-contained.
+     *
+     * @param string $file
+     */
+    public static function invalidate_opcode_php_cache($file) {
+        if (function_exists('opcache_invalidate')) {
+            if (!file_exists($file)) {
+                return;
+            }
+            opcache_invalidate($file, true);
+        }
     }
 }

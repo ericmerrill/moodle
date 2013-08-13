@@ -1521,11 +1521,7 @@ function forum_print_recent_activity($course, $viewfullnames, $timestart) {
                     continue;
                 }
 
-                if (is_null($modinfo->groups)) {
-                    $modinfo->groups = groups_get_user_groups($course->id); // load all my groups and cache it in modinfo
-                }
-
-                if (!array_key_exists($post->groupid, $modinfo->groups[0])) {
+                if (!in_array($post->groupid, $modinfo->get_groups($cm->groupingid))) {
                     continue;
                 }
             }
@@ -1763,7 +1759,8 @@ function forum_scale_used_anywhere($scaleid) {
 function forum_get_post_full($postid) {
     global $CFG, $DB;
 
-    return $DB->get_record_sql("SELECT p.*, d.forum, u.firstname, u.lastname, u.email, u.picture, u.imagealt
+    $allnames = get_all_user_name_fields(true, 'u');
+    return $DB->get_record_sql("SELECT p.*, d.forum, $allnames, u.email, u.picture, u.imagealt
                              FROM {forum_posts} p
                                   JOIN {forum_discussions} d ON p.discussion = d.id
                                   LEFT JOIN {user} u ON p.userid = u.id
@@ -1782,7 +1779,8 @@ function forum_get_post_full($postid) {
 function forum_get_discussion_posts($discussion, $sort, $forumid) {
     global $CFG, $DB;
 
-    return $DB->get_records_sql("SELECT p.*, $forumid AS forum, u.firstname, u.lastname, u.email, u.picture, u.imagealt
+    $allnames = get_all_user_name_fields(true, 'u');
+    return $DB->get_records_sql("SELECT p.*, $forumid AS forum, $allnames, u.email, u.picture, u.imagealt
                               FROM {forum_posts} p
                          LEFT JOIN {user} u ON p.userid = u.id
                              WHERE p.discussion = ?
@@ -1815,8 +1813,9 @@ function forum_get_all_discussion_posts($discussionid, $sort, $tracking=false) {
         $params[] = $USER->id;
     }
 
+    $allnames = get_all_user_name_fields(true, 'u');
     $params[] = $discussionid;
-    if (!$posts = $DB->get_records_sql("SELECT p.*, u.firstname, u.lastname, u.email, u.picture, u.imagealt $tr_sel
+    if (!$posts = $DB->get_records_sql("SELECT p.*, $allnames, u.email, u.picture, u.imagealt $tr_sel
                                      FROM {forum_posts} p
                                           LEFT JOIN {user} u ON p.userid = u.id
                                           $tr_join
@@ -1860,7 +1859,8 @@ function forum_get_all_discussion_posts($discussionid, $sort, $tracking=false) {
 function forum_get_child_posts($parent, $forumid) {
     global $CFG, $DB;
 
-    return $DB->get_records_sql("SELECT p.*, $forumid AS forum, u.firstname, u.lastname, u.email, u.picture, u.imagealt
+    $allnames = get_all_user_name_fields(true, 'u');
+    return $DB->get_records_sql("SELECT p.*, $forumid AS forum, $allnames, u.email, u.picture, u.imagealt
                               FROM {forum_posts} p
                          LEFT JOIN {user} u ON p.userid = u.id
                              WHERE p.parent = ?
@@ -1906,9 +1906,6 @@ function forum_get_readable_forums($userid, $courseid=0) {
     foreach ($courses as $course) {
 
         $modinfo = get_fast_modinfo($course);
-        if (is_null($modinfo->groups)) {
-            $modinfo->groups = groups_get_user_groups($course->id, $userid);
-        }
 
         if (empty($modinfo->instances['forum'])) {
             // hmm, no forums?
@@ -1932,15 +1929,9 @@ function forum_get_readable_forums($userid, $courseid=0) {
 
          /// group access
             if (groups_get_activity_groupmode($cm, $course) == SEPARATEGROUPS and !has_capability('moodle/site:accessallgroups', $context)) {
-                if (is_null($modinfo->groups)) {
-                    $modinfo->groups = groups_get_user_groups($course->id, $USER->id);
-                }
-                if (isset($modinfo->groups[$cm->groupingid])) {
-                    $forum->onlygroups = $modinfo->groups[$cm->groupingid];
-                    $forum->onlygroups[] = -1;
-                } else {
-                    $forum->onlygroups = array(-1);
-                }
+
+                $forum->onlygroups = $modinfo->get_groups($cm->groupingid);
+                $forum->onlygroups[] = -1;
             }
 
         /// hidden timed discussions
@@ -2103,10 +2094,10 @@ function forum_search_posts($searchterms, $courseid=0, $limitfrom=0, $limitnum=5
                    FROM $fromsql
                   WHERE $selectsql";
 
+    $allnames = get_all_user_name_fields(true, 'u');
     $searchsql = "SELECT p.*,
                          d.forum,
-                         u.firstname,
-                         u.lastname,
+                         $allnames,
                          u.email,
                          u.picture,
                          u.imagealt
@@ -2243,7 +2234,8 @@ function forum_get_user_posts($forumid, $userid) {
         }
     }
 
-    return $DB->get_records_sql("SELECT p.*, d.forum, u.firstname, u.lastname, u.email, u.picture, u.imagealt
+    $allnames = get_all_user_name_fields(true, 'u');
+    return $DB->get_records_sql("SELECT p.*, d.forum, $allnames, u.email, u.picture, u.imagealt
                               FROM {forum} f
                                    JOIN {forum_discussions} d ON d.forum = f.id
                                    JOIN {forum_posts} p       ON p.discussion = d.id
@@ -2333,10 +2325,10 @@ function forum_count_user_posts($forumid, $userid) {
 function forum_get_post_from_log($log) {
     global $CFG, $DB;
 
+    $allnames = get_all_user_name_fields(true, 'u');
     if ($log->action == "add post") {
 
-        return $DB->get_record_sql("SELECT p.*, f.type AS forumtype, d.forum, d.groupid,
-                                           u.firstname, u.lastname, u.email, u.picture
+        return $DB->get_record_sql("SELECT p.*, f.type AS forumtype, d.forum, d.groupid, $allnames, u.email, u.picture
                                  FROM {forum_discussions} d,
                                       {forum_posts} p,
                                       {forum} f,
@@ -2350,8 +2342,7 @@ function forum_get_post_from_log($log) {
 
     } else if ($log->action == "add discussion") {
 
-        return $DB->get_record_sql("SELECT p.*, f.type AS forumtype, d.forum, d.groupid,
-                                           u.firstname, u.lastname, u.email, u.picture
+        return $DB->get_record_sql("SELECT p.*, f.type AS forumtype, d.forum, d.groupid, $allnames, u.email, u.picture
                                  FROM {forum_discussions} d,
                                       {forum_posts} p,
                                       {forum} f,
@@ -2501,22 +2492,11 @@ function forum_count_discussions($forum, $cm, $course) {
     require_once($CFG->dirroot.'/course/lib.php');
 
     $modinfo = get_fast_modinfo($course);
-    if (is_null($modinfo->groups)) {
-        $modinfo->groups = groups_get_user_groups($course->id, $USER->id);
-    }
 
-    if (array_key_exists($cm->groupingid, $modinfo->groups)) {
-        $mygroups = $modinfo->groups[$cm->groupingid];
-    } else {
-        $mygroups = false; // Will be set below
-    }
+    $mygroups = $modinfo->get_groups($cm->groupingid);
 
     // add all groups posts
-    if (empty($mygroups)) {
-        $mygroups = array(-1=>-1);
-    } else {
-        $mygroups[-1] = -1;
-    }
+    $mygroups[-1] = -1;
 
     list($mygroups_sql, $params) = $DB->get_in_or_equal($mygroups);
     $params[] = $forum->id;
@@ -2680,12 +2660,17 @@ function forum_get_discussions($cm, $forumsort="d.timemodified DESC", $fullpost=
         $umfields = "";
         $umtable  = "";
     } else {
-        $umfields = ", um.firstname AS umfirstname, um.lastname AS umlastname";
+        $umfields = '';
+        $umnames = get_all_user_name_fields();
+        foreach ($umnames as $umname) {
+            $umfields .= ', um.' . $umname . ' AS um' . $umname;
+        }
         $umtable  = " LEFT JOIN {user} um ON (d.usermodified = um.id)";
     }
 
-    $sql = "SELECT $postdata, d.name, d.timemodified, d.usermodified, d.groupid, d.timestart, d.timeend,
-                   u.firstname, u.lastname, u.email, u.picture, u.imagealt $umfields
+    $allnames = get_all_user_name_fields(true, 'u');
+    $sql = "SELECT $postdata, d.name, d.timemodified, d.usermodified, d.groupid, d.timestart, d.timeend, $allnames,
+                   u.email, u.picture, u.imagealt $umfields
               FROM {forum_discussions} d
                    JOIN {forum_posts} p ON p.discussion = d.id
                    JOIN {user} u ON p.userid = u.id
@@ -2862,7 +2847,8 @@ function forum_get_user_discussions($courseid, $userid, $groupid=0) {
         $groupselect = "";
     }
 
-    return $DB->get_records_sql("SELECT p.*, d.groupid, u.firstname, u.lastname, u.email, u.picture, u.imagealt,
+    $allnames = get_all_user_name_fields(true, 'u');
+    return $DB->get_records_sql("SELECT p.*, d.groupid, $allnames, u.email, u.picture, u.imagealt,
                                    f.type as forumtype, f.name as forumname, f.id as forumid
                               FROM {forum_discussions} d,
                                    {forum_posts} p,
@@ -2919,11 +2905,11 @@ function forum_get_potential_subscribers($forumcontext, $groupid, $fields, $sort
 function forum_subscribed_users($course, $forum, $groupid=0, $context = null, $fields = null) {
     global $CFG, $DB;
 
+    $allnames = get_all_user_name_fields(true, 'u');
     if (empty($fields)) {
         $fields ="u.id,
                   u.username,
-                  u.firstname,
-                  u.lastname,
+                  $allnames,
                   u.maildisplay,
                   u.mailformat,
                   u.maildigest,
@@ -3301,8 +3287,9 @@ function forum_print_post($post, $discussion, $forum, &$cm, $course, $ownpost=fa
     // Build an object that represents the posting user
     $postuser = new stdClass;
     $postuser->id        = $post->userid;
-    $postuser->firstname = $post->firstname;
-    $postuser->lastname  = $post->lastname;
+    foreach (get_all_user_name_fields() as $addname) {
+        $postuser->$addname  = $post->$addname;
+    }
     $postuser->imagealt  = $post->imagealt;
     $postuser->picture   = $post->picture;
     $postuser->email     = $post->email;
@@ -3732,8 +3719,9 @@ function forum_print_discussion_header(&$post, $forum, $group=-1, $datestring=""
     // Picture
     $postuser = new stdClass();
     $postuser->id = $post->userid;
-    $postuser->firstname = $post->firstname;
-    $postuser->lastname = $post->lastname;
+    foreach (get_all_user_name_fields() as $addname) {
+        $postuser->$addname = $post->$addname;
+    }
     $postuser->imagealt = $post->imagealt;
     $postuser->picture = $post->picture;
     $postuser->email = $post->email;
@@ -3800,8 +3788,10 @@ function forum_print_discussion_header(&$post, $forum, $group=-1, $datestring=""
     $parenturl = (empty($post->lastpostid)) ? '' : '&amp;parent='.$post->lastpostid;
     $usermodified = new stdClass();
     $usermodified->id        = $post->usermodified;
-    $usermodified->firstname = $post->umfirstname;
-    $usermodified->lastname  = $post->umlastname;
+    foreach (get_all_user_name_fields() as $addname) {
+        $temp = 'um' . $addname;
+        $usermodified->$addname = $post->$temp;
+    }
     echo '<a href="'.$CFG->wwwroot.'/user/view.php?id='.$post->usermodified.'&amp;course='.$forum->course.'">'.
          fullname($usermodified).'</a><br />';
     echo '<a href="'.$CFG->wwwroot.'/mod/forum/discuss.php?d='.$post->discussion.$parenturl.'">'.
@@ -6035,22 +6025,20 @@ function forum_get_recent_mod_activity(&$activities, &$index, $timestart, $cours
     }
 
     if ($groupid) {
-        $groupselect = "AND gm.groupid = ?";
-        $groupjoin   = "JOIN {groups_members} gm ON  gm.userid=u.id";
+        $groupselect = "AND d.groupid = ?";
         $params[] = $groupid;
     } else {
         $groupselect = "";
-        $groupjoin   = "";
     }
 
+    $allnames = get_all_user_name_fields(true, 'u');
     if (!$posts = $DB->get_records_sql("SELECT p.*, f.type AS forumtype, d.forum, d.groupid,
                                               d.timestart, d.timeend, d.userid AS duserid,
-                                              u.firstname, u.lastname, u.email, u.picture, u.imagealt, u.email
+                                              $allnames, u.email, u.picture, u.imagealt, u.email
                                          FROM {forum_posts} p
                                               JOIN {forum_discussions} d ON d.id = p.discussion
                                               JOIN {forum} f             ON f.id = d.forum
                                               JOIN {user} u              ON u.id = p.userid
-                                              $groupjoin
                                         WHERE p.created > ? AND f.id = ?
                                               $userselect $groupselect
                                      ORDER BY p.id ASC", $params)) { // order by initial posting date
@@ -6061,10 +6049,6 @@ function forum_get_recent_mod_activity(&$activities, &$index, $timestart, $cours
     $cm_context      = context_module::instance($cm->id);
     $viewhiddentimed = has_capability('mod/forum:viewhiddentimedposts', $cm_context);
     $accessallgroups = has_capability('moodle/site:accessallgroups', $cm_context);
-
-    if (is_null($modinfo->groups)) {
-        $modinfo->groups = groups_get_user_groups($course->id); // load all my groups and cache it in modinfo
-    }
 
     $printposts = array();
     foreach ($posts as $post) {
@@ -6086,7 +6070,7 @@ function forum_get_recent_mod_activity(&$activities, &$index, $timestart, $cours
                     continue;
                 }
 
-                if (!array_key_exists($post->groupid, $modinfo->groups[0])) {
+                if (!in_array($post->groupid, $modinfo->get_groups($cm->groupingid))) {
                     continue;
                 }
             }
@@ -6118,11 +6102,12 @@ function forum_get_recent_mod_activity(&$activities, &$index, $timestart, $cours
 
         $tmpactivity->user = new stdClass();
         $tmpactivity->user->id        = $post->userid;
-        $tmpactivity->user->firstname = $post->firstname;
-        $tmpactivity->user->lastname  = $post->lastname;
         $tmpactivity->user->picture   = $post->picture;
         $tmpactivity->user->imagealt  = $post->imagealt;
         $tmpactivity->user->email     = $post->email;
+        foreach (get_all_user_name_fields() as $addname) {
+            $tmpactivity->user->$addname = $post->$addname;
+        }
 
         $activities[$index++] = $tmpactivity;
     }
@@ -6762,22 +6747,11 @@ function forum_tp_count_forum_unread_posts($cm, $course) {
     require_once($CFG->dirroot.'/course/lib.php');
 
     $modinfo = get_fast_modinfo($course);
-    if (is_null($modinfo->groups)) {
-        $modinfo->groups = groups_get_user_groups($course->id, $USER->id);
-    }
 
-    if (array_key_exists($cm->groupingid, $modinfo->groups)) {
-        $mygroups = $modinfo->groups[$cm->groupingid];
-    } else {
-        $mygroups = false; // Will be set below
-    }
+    $mygroups = $modinfo->get_groups($cm->groupingid);
 
     // add all groups posts
-    if (empty($mygroups)) {
-        $mygroups = array(-1=>-1);
-    } else {
-        $mygroups[-1] = -1;
-    }
+    $mygroups[-1] = -1;
 
     list ($groups_sql, $groups_params) = $DB->get_in_or_equal($mygroups);
 
@@ -7680,70 +7654,6 @@ function forum_get_extra_capabilities() {
     return array('moodle/site:accessallgroups', 'moodle/site:viewfullnames', 'moodle/site:trustcontent', 'moodle/rating:view', 'moodle/rating:viewany', 'moodle/rating:viewall', 'moodle/rating:rate');
 }
 
-
-/**
- * This function is used to extend the global navigation by add forum nodes if there
- * is relevant content.
- *
- * @param navigation_node $navref
- * @param stdClass $course
- * @param stdClass $module
- * @param stdClass $cm
- */
-/*************************************************
-function forum_extend_navigation($navref, $course, $module, $cm) {
-    global $CFG, $OUTPUT, $USER;
-
-    $limit = 5;
-
-    $discussions = forum_get_discussions($cm,"d.timemodified DESC", false, -1, $limit);
-    $discussioncount = forum_get_discussions_count($cm);
-    if (!is_array($discussions) || count($discussions)==0) {
-        return;
-    }
-    $discussionnode = $navref->add(get_string('discussions', 'forum').' ('.$discussioncount.')');
-    $discussionnode->mainnavonly = true;
-    $discussionnode->display = false; // Do not display on navigation (only on navbar)
-
-    foreach ($discussions as $discussion) {
-        $icon = new pix_icon('i/feedback', '');
-        $url = new moodle_url('/mod/forum/discuss.php', array('d'=>$discussion->discussion));
-        $discussionnode->add($discussion->subject, $url, navigation_node::TYPE_SETTING, null, null, $icon);
-    }
-
-    if ($discussioncount > count($discussions)) {
-        if (!empty($navref->action)) {
-            $url = $navref->action;
-        } else {
-            $url = new moodle_url('/mod/forum/view.php', array('id'=>$cm->id));
-        }
-        $discussionnode->add(get_string('viewalldiscussions', 'forum'), $url, navigation_node::TYPE_SETTING, null, null, $icon);
-    }
-
-    $index = 0;
-    $recentposts = array();
-    $lastlogin = time() - COURSE_MAX_RECENT_PERIOD;
-    if (!isguestuser() and !empty($USER->lastcourseaccess[$course->id])) {
-        if ($USER->lastcourseaccess[$course->id] > $lastlogin) {
-            $lastlogin = $USER->lastcourseaccess[$course->id];
-        }
-    }
-    forum_get_recent_mod_activity($recentposts, $index, $lastlogin, $course->id, $cm->id);
-
-    if (is_array($recentposts) && count($recentposts)>0) {
-        $recentnode = $navref->add(get_string('recentactivity').' ('.count($recentposts).')');
-        $recentnode->mainnavonly = true;
-        $recentnode->display = false;
-        foreach ($recentposts as $post) {
-            $icon = new pix_icon('i/feedback', '');
-            $url = new moodle_url('/mod/forum/discuss.php', array('d'=>$post->content->discussion));
-            $title = $post->content->subject."\n".userdate($post->timestamp, get_string('strftimerecent', 'langconfig'))."\n".$post->user->firstname.' '.$post->user->lastname;
-            $recentnode->add($title, $url, navigation_node::TYPE_SETTING, null, null, $icon);
-        }
-    }
-}
-*************************/
-
 /**
  * Adds module specific settings to the settings block
  *
@@ -8170,7 +8080,9 @@ function forum_get_courses_user_posted_in($user, $discussionsonly = false, $incl
 
     // Join to the context table so that we can preload contexts if required.
     if ($includecontexts) {
-        list($ctxselect, $ctxjoin) = context_instance_preload_sql('c.id', CONTEXT_COURSE, 'ctx');
+        $ctxselect = ', ' . context_helper::get_preload_record_columns_sql('ctx');
+        $ctxjoin = "LEFT JOIN {context} ctx ON (ctx.instanceid = c.id AND ctx.contextlevel = :contextlevel)";
+        $params['contextlevel'] = CONTEXT_COURSE;
     } else {
         $ctxselect = '';
         $ctxjoin = '';

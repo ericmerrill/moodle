@@ -29,7 +29,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->libdir . '/badgeslib.php');
 
-class badges_testcase extends advanced_testcase {
+class core_badgeslib_testcase extends advanced_testcase {
     protected $badgeid;
 
     protected function setUp() {
@@ -46,7 +46,6 @@ class badges_testcase extends advanced_testcase {
         $fordb->timemodified = time();
         $fordb->usercreated = $user->id;
         $fordb->usermodified = $user->id;
-        $fordb->image = 0;
         $fordb->issuername = "Test issuer";
         $fordb->issuerurl = "http://issuer-url.domain.co.nz";
         $fordb->expiredate = null;
@@ -74,7 +73,6 @@ class badges_testcase extends advanced_testcase {
         $newid = $badge->make_clone();
         $cloned_badge = new badge($newid);
 
-        $this->assertEquals($badge->image, $cloned_badge->image);
         $this->assertEquals($badge->description, $cloned_badge->description);
         $this->assertEquals($badge->issuercontact, $cloned_badge->issuercontact);
         $this->assertEquals($badge->issuername, $cloned_badge->issuername);

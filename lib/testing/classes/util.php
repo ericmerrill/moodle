@@ -598,7 +598,7 @@ abstract class testing_util {
         closedir($handle);
         make_temp_directory('');
         make_cache_directory('');
-        make_cache_directory('htmlpurifier');
+        make_localcache_directory('');
         // Reset the cache API so that it recreates it's required directories as well.
         cache_factory::reset();
         // Purge all data from the caches. This is required for consistency.
@@ -690,7 +690,7 @@ abstract class testing_util {
         $versions['core'] = $version;
 
         // modules
-        $mods = get_plugin_list('mod');
+        $mods = core_component::get_plugin_list('mod');
         ksort($mods);
         foreach ($mods as $mod => $fullmod) {
             $module = new stdClass();
@@ -700,11 +700,11 @@ abstract class testing_util {
         }
 
         // now the rest of plugins
-        $plugintypes = get_plugin_types();
+        $plugintypes = core_component::get_plugin_types();
         unset($plugintypes['mod']);
         ksort($plugintypes);
         foreach ($plugintypes as $type => $unused) {
-            $plugs = get_plugin_list($type);
+            $plugs = core_component::get_plugin_list($type);
             ksort($plugs);
             foreach ($plugs as $plug => $fullplug) {
                 $plugin = new stdClass();

@@ -1877,7 +1877,7 @@ function data_get_available_presets($context) {
     $presets = array();
 
     // First load the ratings sub plugins that exist within the modules preset dir
-    if ($dirs = get_plugin_list('datapreset')) {
+    if ($dirs = core_component::get_plugin_list('datapreset')) {
         foreach ($dirs as $dir=>$fulldir) {
             if (is_directory_a_preset($fulldir)) {
                 $preset = new stdClass();
@@ -3548,12 +3548,14 @@ function data_get_recordids($alias, $searcharray, $dataid, $recordids) {
  */
 function data_get_advanced_search_sql($sort, $data, $recordids, $selectdata, $sortorder) {
     global $DB;
+
+    $namefields = get_all_user_name_fields(true, 'u');
     if ($sort == 0) {
-        $nestselectsql = 'SELECT r.id, r.approved, r.timecreated, r.timemodified, r.userid, u.firstname, u.lastname
+        $nestselectsql = 'SELECT r.id, r.approved, r.timecreated, r.timemodified, r.userid, ' . $namefields . '
                         FROM {data_content} c,
                              {data_records} r,
                              {user} u ';
-        $groupsql = ' GROUP BY r.id, r.approved, r.timecreated, r.timemodified, r.userid, u.firstname, u.lastname ';
+        $groupsql = ' GROUP BY r.id, r.approved, r.timecreated, r.timemodified, r.userid, u.firstname, u.lastname, ' . $namefields;
     } else {
         // Sorting through 'Other' criteria
         if ($sort <= 0) {
@@ -3580,12 +3582,13 @@ function data_get_advanced_search_sql($sort, $data, $recordids, $selectdata, $so
             $sortcontentfull = $sortfield->get_sort_sql($sortcontent);
         }
 
-        $nestselectsql = 'SELECT r.id, r.approved, r.timecreated, r.timemodified, r.userid, u.firstname, u.lastname, ' . $sortcontentfull . '
+        $nestselectsql = 'SELECT r.id, r.approved, r.timecreated, r.timemodified, r.userid, ' . $namefields . ',
+                                 ' . $sortcontentfull . '
                               AS sortorder
                             FROM {data_content} c,
                                  {data_records} r,
                                  {user} u ';
-        $groupsql = ' GROUP BY r.id, r.approved, r.timecreated, r.timemodified, r.userid, u.firstname, u.lastname, ' .$sortcontentfull;
+        $groupsql = ' GROUP BY r.id, r.approved, r.timecreated, r.timemodified, r.userid, ' . $namefields . ', ' .$sortcontentfull;
     }
 
     // Default to a standard Where statement if $selectdata is empty.

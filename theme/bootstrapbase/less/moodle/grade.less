@@ -231,7 +231,11 @@ font-size: 80%}
 }
 
 // replaces grades/report/grader/styles.css
-
+table#user-grades tr.avg td.cell {
+    background-color: #EFEFFF;
+    font-weight: 700;
+    color: #00008B;
+}
 table#user-grades tr td.overridden {
     background-color:#F3E4C0;
 }
@@ -340,11 +344,6 @@ table#user-grades .quickfeedback {
 
 .path-grade-report-grader #siteconfiglink {
     text-align:right;
-}
-
-table#user-grades .hidden,
-table#user-grades .hidden a {
-    .muted
 }
 
 table#user-grades .datesubmitted {
@@ -549,7 +548,12 @@ table#user-grades tr.controls td,
 .path-grade-report-grader table td.userfield {
     text-align:left;
 }
-
+.path-grade-report-grader.dir-rtl {
+    table th.user,
+    table td.userfield {
+        text-align:right;
+    }
+}
 .path-grade-report-grader .usersuspended a:link,
 .path-grade-report-grader .usersuspended a:visited {
     .muted
@@ -592,4 +596,13 @@ table#user-grades tr.controls td,
 
 .path-grade-report-grader #hiddentooltiproot, .tooltipDiv {
   display: none;
+}
+
+.gradingform_rubric.editor .criteria .definition textarea,
+.gradingform_rubric.editor .criteria .scorevalue input {
+    width: auto;
+}
+
+.gradingform_rubric.editor .criteria .scorevalue input {
+    float: left;
 }

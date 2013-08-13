@@ -31,7 +31,7 @@ global $CFG;
 require_once($CFG->dirroot . '/webservice/tests/helpers.php');
 require_once($CFG->dirroot . '/user/externallib.php');
 
-class core_user_external_testcase extends externallib_advanced_testcase {
+class core_user_externallib_testcase extends externallib_advanced_testcase {
 
     /**
      * Test get_users
@@ -457,6 +457,10 @@ class core_user_external_testcase extends externallib_advanced_testcase {
             'idnumber' => 'idnumbertest1',
             'firstname' => 'First Name User Test 1',
             'lastname' => 'Last Name User Test 1',
+            'middlename' => 'Middle Name User Test 1',
+            'lastnamephonetic' => '最後のお名前のテスト一号',
+            'firstnamephonetic' => 'お名前のテスト一号',
+            'alternatename' => 'Alternate Name User Test 1',
             'email' => 'usertest1@email.com',
             'description' => 'This is a description for user 1',
             'city' => 'Perth',
@@ -632,6 +636,10 @@ class core_user_external_testcase extends externallib_advanced_testcase {
             'idnumber' => 'idnumbertest1',
             'firstname' => 'First Name User Test 1',
             'lastname' => 'Last Name User Test 1',
+            'middlename' => 'Middle Name User Test 1',
+            'lastnamephonetic' => '最後のお名前のテスト一号',
+            'firstnamephonetic' => 'お名前のテスト一号',
+            'alternatename' => 'Alternate Name User Test 1',
             'email' => 'usertest1@email.com',
             'description' => 'This is a description for user 1',
             'city' => 'Perth',
