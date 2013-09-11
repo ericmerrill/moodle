@@ -920,6 +920,8 @@ function assign_grade_item_update($assign, $grades=null) {
     } else {
         // Allow text comments only.
         $params['gradetype'] = GRADE_TYPE_TEXT;
+        $params['grademax']  = $assign->grade;
+        $params['grademin']  = 0;
     }
 
     if ($grades  === 'reset') {

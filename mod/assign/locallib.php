@@ -1724,7 +1724,7 @@ class assign {
         }
 
         if ($grade->grade && $grade->grade != -1) {
-            if ($this->get_instance()->grade > 0) {
+            if ($this->get_instance()->grade >= 0) {
                 if (!is_numeric($grade->grade)) {
                     return false;
                 } else if ($grade->grade > $this->get_instance()->grade) {
@@ -5360,7 +5360,7 @@ class assign {
                     $mform->addElement('static', 'gradedisabled', $name, $strgradelocked);
                     $mform->addHelpButton('gradedisabled', 'gradeoutofhelp', 'assign');
                 }
-            } else {
+            } else if ($this->get_instance()->grade < 0) {
                 $grademenu = make_grades_menu($this->get_instance()->grade);
                 if (count($grademenu) > 0) {
                     $gradingelement = $mform->addElement('select', 'grade', get_string('grade') . ':', $grademenu);
