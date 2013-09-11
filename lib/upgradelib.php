@@ -488,8 +488,6 @@ function upgrade_plugins($type, $startcallback, $endcallback, $verbose) {
                 message_update_processors($plug);
             }
             upgrade_plugin_mnet_functions($component);
-            cache_helper::purge_all(true);
-            purge_all_caches();
             $endcallback($component, true, $verbose);
 
         } else if ($installedversion < $plugin->version) { // upgrade
@@ -521,8 +519,6 @@ function upgrade_plugins($type, $startcallback, $endcallback, $verbose) {
                 message_update_processors($plug);
             }
             upgrade_plugin_mnet_functions($component);
-            cache_helper::purge_all(true);
-            purge_all_caches();
             $endcallback($component, false, $verbose);
 
         } else if ($installedversion > $plugin->version) {
@@ -653,7 +649,6 @@ function upgrade_plugins_modules($startcallback, $endcallback, $verbose) {
             message_update_providers($component);
             upgrade_plugin_mnet_functions($component);
 
-            purge_all_caches();
             $endcallback($component, true, $verbose);
 
         } else if ($currmodule->version < $module->version) {
@@ -686,8 +681,6 @@ function upgrade_plugins_modules($startcallback, $endcallback, $verbose) {
             events_update_definition($component);
             message_update_providers($component);
             upgrade_plugin_mnet_functions($component);
-
-            purge_all_caches();
 
             $endcallback($component, false, $verbose);
 
@@ -844,7 +837,6 @@ function upgrade_plugins_blocks($startcallback, $endcallback, $verbose) {
             message_update_providers($component);
             upgrade_plugin_mnet_functions($component);
 
-            purge_all_caches();
             $endcallback($component, true, $verbose);
 
         } else if ($currblock->version < $block->version) {
@@ -877,7 +869,6 @@ function upgrade_plugins_blocks($startcallback, $endcallback, $verbose) {
             message_update_providers($component);
             upgrade_plugin_mnet_functions($component);
 
-            purge_all_caches();
             $endcallback($component, false, $verbose);
 
         } else if ($currblock->version > $block->version) {
@@ -1045,6 +1036,7 @@ function external_update_descriptions($component) {
         $service['requiredcapability'] = empty($service['requiredcapability']) ? null : $service['requiredcapability'];
         $service['restrictedusers'] = !isset($service['restrictedusers']) ? 1 : $service['restrictedusers'];
         $service['downloadfiles'] = !isset($service['downloadfiles']) ? 0 : $service['downloadfiles'];
+        $service['uploadfiles'] = !isset($service['uploadfiles']) ? 0 : $service['uploadfiles'];
         $service['shortname'] = !isset($service['shortname']) ? null : $service['shortname'];
 
         $update = false;
@@ -1058,6 +1050,10 @@ function external_update_descriptions($component) {
         }
         if ($dbservice->downloadfiles != $service['downloadfiles']) {
             $dbservice->downloadfiles = $service['downloadfiles'];
+            $update = true;
+        }
+        if ($dbservice->uploadfiles != $service['uploadfiles']) {
+            $dbservice->uploadfiles = $service['uploadfiles'];
             $update = true;
         }
         //if shortname is not a PARAM_ALPHANUMEXT, fail (tested here for service update and creation)
@@ -1114,6 +1110,7 @@ function external_update_descriptions($component) {
         $dbservice->requiredcapability = empty($service['requiredcapability']) ? null : $service['requiredcapability'];
         $dbservice->restrictedusers    = !isset($service['restrictedusers']) ? 1 : $service['restrictedusers'];
         $dbservice->downloadfiles      = !isset($service['downloadfiles']) ? 0 : $service['downloadfiles'];
+        $dbservice->uploadfiles        = !isset($service['uploadfiles']) ? 0 : $service['uploadfiles'];
         $dbservice->shortname          = !isset($service['shortname']) ? null : $service['shortname'];
         $dbservice->component          = $component;
         $dbservice->timecreated        = time();
@@ -1142,7 +1139,7 @@ function upgrade_handle_exception($ex, $plugin = null) {
     upgrade_log(UPGRADE_LOG_ERROR, $plugin, 'Exception: ' . get_class($ex), $info->message, $info->backtrace);
 
     // Always turn on debugging - admins need to know what is going on
-    $CFG->debug = DEBUG_DEVELOPER;
+    set_debugging(DEBUG_DEVELOPER, true);
 
     default_exception_handler($ex, true, $plugin);
 }
@@ -1526,9 +1523,9 @@ function upgrade_core($version, $verbose) {
     require_once($CFG->libdir.'/db/upgrade.php');    // Defines upgrades
 
     try {
-        // Reset caches before any output
-        purge_all_caches();
+        // Reset caches before any output.
         cache_helper::purge_all(true);
+        purge_all_caches();
 
         // Upgrade current language pack if we can
         upgrade_language_pack();
@@ -1560,8 +1557,8 @@ function upgrade_core($version, $verbose) {
         cache_helper::update_definitions(true);
 
         // Purge caches again, just to be sure we arn't holding onto old stuff now.
-        purge_all_caches();
         cache_helper::purge_all(true);
+        purge_all_caches();
 
         // Clean up contexts - more and more stuff depends on existence of paths and contexts
         context_helper::cleanup_instances();
@@ -1588,12 +1585,23 @@ function upgrade_noncore($verbose) {
 
     // upgrade all plugins types
     try {
+        // Reset caches before any output.
+        cache_helper::purge_all(true);
+        purge_all_caches();
+
         $plugintypes = core_component::get_plugin_types();
         foreach ($plugintypes as $type=>$location) {
             upgrade_plugins($type, 'print_upgrade_part_start', 'print_upgrade_part_end', $verbose);
         }
         // Update cache definitions. Involves scanning each plugin for any changes.
         cache_helper::update_definitions();
+        // Mark the site as upgraded.
+        set_config('allversionshash', core_component::get_all_versions_hash());
+
+        // Purge caches again, just to be sure we arn't holding onto old stuff now.
+        cache_helper::purge_all(true);
+        purge_all_caches();
+
     } catch (Exception $ex) {
         upgrade_handle_exception($ex);
     }

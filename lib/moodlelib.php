@@ -1220,6 +1220,8 @@ function fix_utf8($value) {
             // Shortcut.
             return $value;
         }
+        // No null bytes expected in our data, so let's remove it.
+        $value = str_replace("\0", '', $value);
 
         // Lower error reporting because glibc throws bogus notices.
         $olderror = error_reporting();
@@ -3213,11 +3215,7 @@ function require_login($courseorid = null, $autologinguest = true, $cm = null, $
 function require_logout() {
     global $USER;
 
-    $params = $USER;
-
     if (isloggedin()) {
-        add_to_log(SITEID, "user", "logout", "view.php?id=$USER->id&course=".SITEID, $USER->id, 0, $USER->id);
-
         $authsequence = get_enabled_auth_plugins(); // Auths, in sequence.
         foreach ($authsequence as $authname) {
             $authplugin = get_auth_plugin($authname);
@@ -3225,9 +3223,16 @@ function require_logout() {
         }
     }
 
-    events_trigger('user_logout', $params);
+    $event = \core\event\user_loggedout::create(
+            array(
+                'objectid' => $USER->id,
+                'context' => context_user::instance($USER->id)
+                )
+            );
+    $event->trigger();
+
     session_get_instance()->terminate_current();
-    unset($params);
+    unset($GLOBALS['USER']);
 }
 
 /**
@@ -3440,7 +3445,9 @@ function get_user_key($script, $userid, $instance=null, $iprestriction=null, $va
  * @return bool Always returns true
  */
 function update_user_login_times() {
-    global $USER, $DB;
+    global $USER, $DB, $CFG;
+
+    require_once($CFG->dirroot.'/user/lib.php');
 
     if (isguestuser()) {
         // Do not update guest access times/ips for performance.
@@ -3466,7 +3473,7 @@ function update_user_login_times() {
     $USER->lastaccess = $user->lastaccess = $now;
     $USER->lastip = $user->lastip = getremoteaddr();
 
-    $DB->update_record('user', $user);
+    user_update_user($user, false);
     return true;
 }
 
@@ -3965,7 +3972,9 @@ function get_user_fieldnames() {
  */
 function create_user_record($username, $password, $auth = 'manual') {
     global $CFG, $DB;
-    require_once($CFG->dirroot."/user/profile/lib.php");
+    require_once($CFG->dirroot.'/user/profile/lib.php');
+    require_once($CFG->dirroot.'/user/lib.php');
+
     // Just in case check text case.
     $username = trim(core_text::strtolower($username));
 
@@ -4006,7 +4015,7 @@ function create_user_record($username, $password, $auth = 'manual') {
     $newuser->timemodified = $newuser->timecreated;
     $newuser->mnethostid = $CFG->mnet_localhost_id;
 
-    $newuser->id = $DB->insert_record('user', $newuser);
+    $newuser->id = user_create_user($newuser, false);
 
     // Save user profile data.
     profile_save_data($newuser);
@@ -4017,10 +4026,6 @@ function create_user_record($username, $password, $auth = 'manual') {
     }
     // Set the password.
     update_internal_user_password($user, $password);
-
-    // Fetch full user record for the event, the complete user data contains too much info
-    // and we want to be consistent with other places that trigger this event.
-    events_trigger('user_created', $DB->get_record('user', array('id' => $user->id)));
 
     return $user;
 }
@@ -4034,6 +4039,7 @@ function create_user_record($username, $password, $auth = 'manual') {
 function update_user_record($username) {
     global $DB, $CFG;
     require_once($CFG->dirroot."/user/profile/lib.php");
+    require_once($CFG->dirroot.'/user/lib.php');
     // Just in case check text case.
     $username = trim(core_text::strtolower($username));
 
@@ -4076,14 +4082,10 @@ function update_user_record($username) {
         if ($newuser) {
             $newuser['id'] = $oldinfo->id;
             $newuser['timemodified'] = time();
-            $DB->update_record('user', $newuser);
+            user_update_user((object) $newuser, false);
 
             // Save user profile data.
             profile_save_data((object) $newuser);
-
-            // Fetch full user record for the event, the complete user data contains too much info
-            // and we want to be consistent with other places that trigger this event.
-            events_trigger('user_updated', $DB->get_record('user', array('id' => $oldinfo->id)));
         }
     }
 
@@ -4141,6 +4143,7 @@ function delete_user(stdClass $user) {
     require_once($CFG->libdir.'/gradelib.php');
     require_once($CFG->dirroot.'/message/lib.php');
     require_once($CFG->dirroot.'/tag/lib.php');
+    require_once($CFG->dirroot.'/user/lib.php');
 
     // Make sure nobody sends bogus record type as parameter.
     if (!property_exists($user, 'id') or !property_exists($user, 'username')) {
@@ -4166,6 +4169,9 @@ function delete_user(stdClass $user) {
         debugging('Local administrator accounts can not be deleted.');
         return false;
     }
+
+    // Keep a copy of user context, we need it for event.
+    $usercontext = context_user::instance($user->id);
 
     // Delete all grades - backup is kept in grade_grades_history table.
     grade_user_delete($user->id);
@@ -4216,9 +4222,6 @@ function delete_user(stdClass $user) {
     // Force logout - may fail if file based sessions used, sorry.
     session_kill_user($user->id);
 
-    // Now do a final accesslib cleanup - removes all role assignments in user context and context itself.
-    context_helper::delete_instance(CONTEXT_USER, $user->id);
-
     // Workaround for bulk deletes of users with the same email address.
     $delname = "$user->email.".time();
     while ($DB->record_exists('user', array('username' => $delname))) { // No need to use mnethostid here.
@@ -4235,9 +4238,22 @@ function delete_user(stdClass $user) {
     $updateuser->picture      = 0;
     $updateuser->timemodified = time();
 
-    $DB->update_record('user', $updateuser);
-    // Add this action to log.
-    add_to_log(SITEID, 'user', 'delete', "view.php?id=$user->id", $user->firstname.' '.$user->lastname);
+    user_update_user($updateuser, false);
+
+    // Now do a final accesslib cleanup - removes all role assignments in user context and context itself.
+    context_helper::delete_instance(CONTEXT_USER, $user->id);
+
+    // Any plugin that needs to cleanup should register this event.
+    // Trigger event.
+    $event = \core\event\user_deleted::create(
+            array(
+                'objectid' => $user->id,
+                'context' => $usercontext,
+                'other' => array('user' => (array)clone $user)
+                )
+            );
+    $event->add_record_snapshot('user', $updateuser);
+    $event->trigger();
 
     // We will update the user's timemodified, as it will be passed to the user_deleted event, which
     // should know about this updated property persisted to the user's table.
@@ -4246,9 +4262,6 @@ function delete_user(stdClass $user) {
     // Notify auth plugin - do not block the delete even when plugin fails.
     $authplugin = get_auth_plugin($user->auth);
     $authplugin->user_delete($user);
-
-    // Any plugin that needs to cleanup should register this event.
-    events_trigger('user_deleted', $user);
 
     return true;
 }
@@ -4859,10 +4872,15 @@ function delete_course($courseorid, $showfeedback = true) {
     $DB->delete_records("course", array("id" => $courseid));
     $DB->delete_records("course_format_options", array("courseid" => $courseid));
 
-    // Trigger events.
-    $course->context = $context;
-    // You can not fetch context in the event because it was already deleted.
-    events_trigger('course_deleted', $course);
+    // Trigger a course deleted event.
+    $event = \core\event\course_deleted::create(array(
+        'objectid' => $course->id,
+        'context' => $context,
+        'other' => array('shortname' => $course->shortname,
+                         'fullname' => $course->fullname)
+    ));
+    $event->add_record_snapshot('course', $course);
+    $event->trigger();
 
     return true;
 }
@@ -4888,6 +4906,7 @@ function delete_course($courseorid, $showfeedback = true) {
  */
 function remove_course_contents($courseid, $showfeedback = true, array $options = null) {
     global $CFG, $DB, $OUTPUT;
+
     require_once($CFG->libdir.'/badgeslib.php');
     require_once($CFG->libdir.'/completionlib.php');
     require_once($CFG->libdir.'/questionlib.php');
@@ -5127,10 +5146,16 @@ function remove_course_contents($courseid, $showfeedback = true, array $options 
     // also some non-standard unsupported plugins may try to store something there.
     fulldelete($CFG->dataroot.'/'.$course->id);
 
-    // Finally trigger the event.
-    $course->context = $coursecontext; // You can not access context in cron event later after course is deleted.
-    $course->options = $options;       // Not empty if we used any crazy hack.
-    events_trigger('course_content_removed', $course);
+    // Trigger a course content deleted event.
+    $event = \core\event\course_content_deleted::create(array(
+        'objectid' => $course->id,
+        'context' => $coursecontext,
+        'other' => array('shortname' => $course->shortname,
+                         'fullname' => $course->fullname,
+                         'options' => $options) // Passing this for legacy reasons.
+    ));
+    $event->add_record_snapshot('course', $course);
+    $event->trigger();
 
     return true;
 }
@@ -6616,7 +6641,7 @@ function get_parent_language($lang=null) {
  *
  * @category string
  * @param bool $forcereload shall the singleton be released and new instance created instead?
- * @return string_manager
+ * @return core_string_manager
  */
 function get_string_manager($forcereload=false) {
     global $CFG;
@@ -6635,976 +6660,15 @@ function get_string_manager($forcereload=false) {
                 $translist = explode(',', $CFG->langlist);
             }
 
-            if (empty($CFG->langmenucachefile)) {
-                $langmenucache = $CFG->cachedir . '/languages';
-            } else {
-                $langmenucache = $CFG->langmenucachefile;
-            }
-
-            $singleton = new core_string_manager($CFG->langotherroot, $CFG->langlocalroot,
-                                                 !empty($CFG->langstringcache), $translist, $langmenucache);
+            $singleton = new core_string_manager_standard($CFG->langotherroot, $CFG->langlocalroot, $translist);
 
         } else {
-            $singleton = new install_string_manager();
+            $singleton = new core_string_manager_install();
         }
     }
 
     return $singleton;
 }
-
-
-/**
- * Interface for string manager
- *
- * Interface describing class which is responsible for getting
- * of localised strings from language packs.
- *
- * @package    core
- * @copyright  2010 Petr Skoda (http://skodak.org)
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-interface string_manager {
-    /**
-     * Get String returns a requested string
-     *
-     * @param string $identifier The identifier of the string to search for
-     * @param string $component The module the string is associated with
-     * @param string|object|array $a An object, string or number that can be used
-     *      within translation strings
-     * @param string $lang moodle translation language, null means use current
-     * @return string The String !
-     */
-    public function get_string($identifier, $component = '', $a = null, $lang = null);
-
-    /**
-     * Does the string actually exist?
-     *
-     * get_string() is throwing debug warnings, sometimes we do not want them
-     * or we want to display better explanation of the problem.
-     *
-     * Use with care!
-     *
-     * @param string $identifier The identifier of the string to search for
-     * @param string $component The module the string is associated with
-     * @return boot true if exists
-     */
-    public function string_exists($identifier, $component);
-
-    /**
-     * Returns a localised list of all country names, sorted by country keys.
-     * @param bool $returnall return all or just enabled
-     * @param string $lang moodle translation language, null means use current
-     * @return array two-letter country code => translated name.
-     */
-    public function get_list_of_countries($returnall = false, $lang = null);
-
-    /**
-     * Returns a localised list of languages, sorted by code keys.
-     *
-     * @param string $lang moodle translation language, null means use current
-     * @param string $standard language list standard
-     *                     iso6392: three-letter language code (ISO 639-2/T) => translated name.
-     * @return array language code => translated name
-     */
-    public function get_list_of_languages($lang = null, $standard = 'iso6392');
-
-    /**
-     * Checks if the translation exists for the language
-     *
-     * @param string $lang moodle translation language code
-     * @param bool $includeall include also disabled translations
-     * @return bool true if exists
-     */
-    public function translation_exists($lang, $includeall = true);
-
-    /**
-     * Returns localised list of installed translations
-     * @param bool $returnall return all or just enabled
-     * @return array moodle translation code => localised translation name
-     */
-    public function get_list_of_translations($returnall = false);
-
-    /**
-     * Returns localised list of currencies.
-     *
-     * @param string $lang moodle translation language, null means use current
-     * @return array currency code => localised currency name
-     */
-    public function get_list_of_currencies($lang = null);
-
-    /**
-     * Load all strings for one component
-     * @param string $component The module the string is associated with
-     * @param string $lang
-     * @param bool $disablecache Do not use caches, force fetching the strings from sources
-     * @param bool $disablelocal Do not use customized strings in xx_local language packs
-     * @return array of all string for given component and lang
-     */
-    public function load_component_strings($component, $lang, $disablecache=false, $disablelocal=false);
-
-    /**
-     * Invalidates all caches, should the implementation use any
-     * @param bool $phpunitreset true means called from our PHPUnit integration test reset
-     */
-    public function reset_caches($phpunitreset = false);
-
-    /**
-     * Returns string revision counter, this is incremented after any
-     * string cache reset.
-     * @return int lang string revision counter, -1 if unknown
-     */
-    public function get_revision();
-}
-
-
-/**
- * Standard string_manager implementation
- *
- * Implements string_manager with getting and printing localised strings
- *
- * @package    core
- * @category   string
- * @copyright  2010 Petr Skoda (http://skodak.org)
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-class core_string_manager implements string_manager {
-    /** @var string location of all packs except 'en' */
-    protected $otherroot;
-    /** @var string location of all lang pack local modifications */
-    protected $localroot;
-    /** @var cache lang string cache - it will be optimised more later */
-    protected $cache;
-    /** @var int get_string() counter */
-    protected $countgetstring = 0;
-    /** @var bool use disk cache */
-    protected $usecache;
-    /** @var array limit list of translations */
-    protected $translist;
-    /** @var string location of a file that caches the list of available translations */
-    protected $menucache;
-
-    /**
-     * Create new instance of string manager
-     *
-     * @param string $otherroot location of downlaoded lang packs - usually $CFG->dataroot/lang
-     * @param string $localroot usually the same as $otherroot
-     * @param bool $usecache use disk cache
-     * @param array $translist limit list of visible translations
-     * @param string $menucache the location of a file that caches the list of available translations
-     */
-    public function __construct($otherroot, $localroot, $usecache, $translist, $menucache) {
-        $this->otherroot    = $otherroot;
-        $this->localroot    = $localroot;
-        $this->usecache     = $usecache;
-        $this->translist    = $translist;
-        $this->menucache    = $menucache;
-
-        if ($this->usecache) {
-            // We can use a proper cache, establish the cache using the 'String cache' definition.
-            $this->cache = cache::make('core', 'string');
-        } else {
-            // We only want a cache for the length of the request, create a static cache.
-            $options = array(
-                'simplekeys' => true,
-                'simpledata' => true
-            );
-            $this->cache = cache::make_from_params(cache_store::MODE_REQUEST, 'core', 'string', array(), $options);
-        }
-    }
-
-    /**
-     * Returns list of all explicit parent languages for the given language.
-     *
-     * English (en) is considered as the top implicit parent of all language packs
-     * and is not included in the returned list. The language itself is appended to the
-     * end of the list. The method is aware of circular dependency risk.
-     *
-     * @see self::populate_parent_languages()
-     * @param string $lang the code of the language
-     * @return array all explicit parent languages with the lang itself appended
-     */
-    public function get_language_dependencies($lang) {
-        return $this->populate_parent_languages($lang);
-    }
-
-    /**
-     * Load all strings for one component
-     *
-     * @param string $component The module the string is associated with
-     * @param string $lang
-     * @param bool $disablecache Do not use caches, force fetching the strings from sources
-     * @param bool $disablelocal Do not use customized strings in xx_local language packs
-     * @return array of all string for given component and lang
-     */
-    public function load_component_strings($component, $lang, $disablecache=false, $disablelocal=false) {
-        global $CFG;
-
-        list($plugintype, $pluginname) = core_component::normalize_component($component);
-        if ($plugintype == 'core' and is_null($pluginname)) {
-            $component = 'core';
-        } else {
-            $component = $plugintype . '_' . $pluginname;
-        }
-
-        $cachekey = $lang.'_'.$component;
-
-        if (!$disablecache and !$disablelocal) {
-            $string = $this->cache->get($cachekey);
-            if ($string) {
-                return $string;
-            }
-        }
-
-        // No cache found - let us merge all possible sources of the strings.
-        if ($plugintype === 'core') {
-            $file = $pluginname;
-            if ($file === null) {
-                $file = 'moodle';
-            }
-            $string = array();
-            // First load english pack.
-            if (!file_exists("$CFG->dirroot/lang/en/$file.php")) {
-                return array();
-            }
-            include("$CFG->dirroot/lang/en/$file.php");
-            $originalkeys = array_keys($string);
-            $originalkeys = array_flip($originalkeys);
-
-            // And then corresponding local if present and allowed.
-            if (!$disablelocal and file_exists("$this->localroot/en_local/$file.php")) {
-                include("$this->localroot/en_local/$file.php");
-            }
-            // Now loop through all langs in correct order.
-            $deps = $this->get_language_dependencies($lang);
-            foreach ($deps as $dep) {
-                // The main lang string location.
-                if (file_exists("$this->otherroot/$dep/$file.php")) {
-                    include("$this->otherroot/$dep/$file.php");
-                }
-                if (!$disablelocal and file_exists("$this->localroot/{$dep}_local/$file.php")) {
-                    include("$this->localroot/{$dep}_local/$file.php");
-                }
-            }
-
-        } else {
-            if (!$location = core_component::get_plugin_directory($plugintype, $pluginname) or !is_dir($location)) {
-                return array();
-            }
-            if ($plugintype === 'mod') {
-                // Bloody mod hack.
-                $file = $pluginname;
-            } else {
-                $file = $plugintype . '_' . $pluginname;
-            }
-            $string = array();
-            // First load English pack.
-            if (!file_exists("$location/lang/en/$file.php")) {
-                // English pack does not exist, so do not try to load anything else.
-                return array();
-            }
-            include("$location/lang/en/$file.php");
-            $originalkeys = array_keys($string);
-            $originalkeys = array_flip($originalkeys);
-            // And then corresponding local english if present.
-            if (!$disablelocal and file_exists("$this->localroot/en_local/$file.php")) {
-                include("$this->localroot/en_local/$file.php");
-            }
-
-            // Now loop through all langs in correct order.
-            $deps = $this->get_language_dependencies($lang);
-            foreach ($deps as $dep) {
-                // Legacy location - used by contrib only.
-                if (file_exists("$location/lang/$dep/$file.php")) {
-                    include("$location/lang/$dep/$file.php");
-                }
-                // The main lang string location.
-                if (file_exists("$this->otherroot/$dep/$file.php")) {
-                    include("$this->otherroot/$dep/$file.php");
-                }
-                // Local customisations.
-                if (!$disablelocal and file_exists("$this->localroot/{$dep}_local/$file.php")) {
-                    include("$this->localroot/{$dep}_local/$file.php");
-                }
-            }
-        }
-
-        // We do not want any extra strings from other languages - everything must be in en lang pack.
-        $string = array_intersect_key($string, $originalkeys);
-
-        if (!$disablelocal) {
-            // Now we have a list of strings from all possible sources. put it into both in-memory and on-disk
-            // caches so we do not need to do all this merging and dependencies resolving again.
-            $this->cache->set($cachekey, $string);
-        }
-        return $string;
-    }
-
-    /**
-     * Does the string actually exist?
-     *
-     * get_string() is throwing debug warnings, sometimes we do not want them
-     * or we want to display better explanation of the problem.
-     * Note: Use with care!
-     *
-     * @param string $identifier The identifier of the string to search for
-     * @param string $component The module the string is associated with
-     * @return boot true if exists
-     */
-    public function string_exists($identifier, $component) {
-        $lang = current_language();
-        $string = $this->load_component_strings($component, $lang);
-        return isset($string[$identifier]);
-    }
-
-    /**
-     * Get String returns a requested string
-     *
-     * @param string $identifier The identifier of the string to search for
-     * @param string $component The module the string is associated with
-     * @param string|object|array $a An object, string or number that can be used
-     *      within translation strings
-     * @param string $lang moodle translation language, null means use current
-     * @return string The String !
-     */
-    public function get_string($identifier, $component = '', $a = null, $lang = null) {
-        $this->countgetstring++;
-        // There are very many uses of these time formating strings without the 'langconfig' component,
-        // it would not be reasonable to expect that all of them would be converted during 2.0 migration.
-        static $langconfigstrs = array(
-                'strftimedate' => 1,
-                'strftimedatefullshort' => 1,
-                'strftimedateshort' => 1,
-                'strftimedatetime' => 1,
-                'strftimedatetimeshort' => 1,
-                'strftimedaydate' => 1,
-                'strftimedaydatetime' => 1,
-                'strftimedayshort' => 1,
-                'strftimedaytime' => 1,
-                'strftimemonthyear' => 1,
-                'strftimerecent' => 1,
-                'strftimerecentfull' => 1,
-                'strftimetime' => 1);
-
-        if (empty($component)) {
-            if (isset($langconfigstrs[$identifier])) {
-                $component = 'langconfig';
-            } else {
-                $component = 'moodle';
-            }
-        }
-
-        if ($lang === null) {
-            $lang = current_language();
-        }
-
-        $string = $this->load_component_strings($component, $lang);
-
-        if (!isset($string[$identifier])) {
-            if ($component === 'pix' or $component === 'core_pix') {
-                // This component contains only alt tags for emoticons, not all of them are supposed to be defined.
-                return '';
-            }
-            if ($identifier === 'parentlanguage' and ($component === 'langconfig' or $component === 'core_langconfig')) {
-                // Identifier parentlanguage is a special string, undefined means use English if not defined.
-                return 'en';
-            }
-            if ($this->usecache) {
-                // Maybe the on-disk cache is dirty - let the last attempt be to find the string in original sources,
-                // do NOT write the results to disk cache because it may end up in race conditions see MDL-31904.
-                $this->usecache = false;
-                $string = $this->load_component_strings($component, $lang, true);
-                $this->usecache = true;
-            }
-            if (!isset($string[$identifier])) {
-                // The string is still missing - should be fixed by developer.
-                list($plugintype, $pluginname) = core_component::normalize_component($component);
-                if ($plugintype == 'core') {
-                    $file = "lang/en/{$component}.php";
-                } else if ($plugintype == 'mod') {
-                    $file = "mod/{$pluginname}/lang/en/{$pluginname}.php";
-                } else {
-                    $path = core_component::get_plugin_directory($plugintype, $pluginname);
-                    $file = "{$path}/lang/en/{$plugintype}_{$pluginname}.php";
-                }
-                debugging("Invalid get_string() identifier: '{$identifier}' or component '{$component}'. " .
-                        "Perhaps you are missing \$string['{$identifier}'] = ''; in {$file}?", DEBUG_DEVELOPER);
-                return "[[$identifier]]";
-            }
-        }
-
-        $string = $string[$identifier];
-
-        if ($a !== null) {
-            // Process array's and objects (except lang_strings).
-            if (is_array($a) or (is_object($a) && !($a instanceof lang_string))) {
-                $a = (array)$a;
-                $search = array();
-                $replace = array();
-                foreach ($a as $key => $value) {
-                    if (is_int($key)) {
-                        // We do not support numeric keys - sorry!
-                        continue;
-                    }
-                    if (is_array($value) or (is_object($value) && !($value instanceof lang_string))) {
-                        // We support just string or lang_string as value.
-                        continue;
-                    }
-                    $search[]  = '{$a->'.$key.'}';
-                    $replace[] = (string)$value;
-                }
-                if ($search) {
-                    $string = str_replace($search, $replace, $string);
-                }
-            } else {
-                $string = str_replace('{$a}', (string)$a, $string);
-            }
-        }
-
-        return $string;
-    }
-
-    /**
-     * Returns information about the string_manager performance.
-     *
-     * @return array
-     */
-    public function get_performance_summary() {
-        return array(array(
-            'langcountgetstring' => $this->countgetstring,
-        ), array(
-            'langcountgetstring' => 'get_string calls',
-        ));
-    }
-
-    /**
-     * Returns a localised list of all country names, sorted by localised name.
-     *
-     * @param bool $returnall return all or just enabled
-     * @param string $lang moodle translation language, null means use current
-     * @return array two-letter country code => translated name.
-     */
-    public function get_list_of_countries($returnall = false, $lang = null) {
-        global $CFG;
-
-        if ($lang === null) {
-            $lang = current_language();
-        }
-
-        $countries = $this->load_component_strings('core_countries', $lang);
-        core_collator::asort($countries);
-        if (!$returnall and !empty($CFG->allcountrycodes)) {
-            $enabled = explode(',', $CFG->allcountrycodes);
-            $return = array();
-            foreach ($enabled as $c) {
-                if (isset($countries[$c])) {
-                    $return[$c] = $countries[$c];
-                }
-            }
-            return $return;
-        }
-
-        return $countries;
-    }
-
-    /**
-     * Returns a localised list of languages, sorted by code keys.
-     *
-     * @param string $lang moodle translation language, null means use current
-     * @param string $standard language list standard
-     *    - iso6392: three-letter language code (ISO 639-2/T) => translated name
-     *    - iso6391: two-letter langauge code (ISO 639-1) => translated name
-     * @return array language code => translated name
-     */
-    public function get_list_of_languages($lang = null, $standard = 'iso6391') {
-        if ($lang === null) {
-            $lang = current_language();
-        }
-
-        if ($standard === 'iso6392') {
-            $langs = $this->load_component_strings('core_iso6392', $lang);
-            ksort($langs);
-            return $langs;
-
-        } else if ($standard === 'iso6391') {
-            $langs2 = $this->load_component_strings('core_iso6392', $lang);
-            static $mapping = array('aar' => 'aa', 'abk' => 'ab', 'afr' => 'af', 'aka' => 'ak', 'sqi' => 'sq', 'amh' => 'am', 'ara' => 'ar', 'arg' => 'an', 'hye' => 'hy',
-                'asm' => 'as', 'ava' => 'av', 'ave' => 'ae', 'aym' => 'ay', 'aze' => 'az', 'bak' => 'ba', 'bam' => 'bm', 'eus' => 'eu', 'bel' => 'be', 'ben' => 'bn', 'bih' => 'bh',
-                'bis' => 'bi', 'bos' => 'bs', 'bre' => 'br', 'bul' => 'bg', 'mya' => 'my', 'cat' => 'ca', 'cha' => 'ch', 'che' => 'ce', 'zho' => 'zh', 'chu' => 'cu', 'chv' => 'cv',
-                'cor' => 'kw', 'cos' => 'co', 'cre' => 'cr', 'ces' => 'cs', 'dan' => 'da', 'div' => 'dv', 'nld' => 'nl', 'dzo' => 'dz', 'eng' => 'en', 'epo' => 'eo', 'est' => 'et',
-                'ewe' => 'ee', 'fao' => 'fo', 'fij' => 'fj', 'fin' => 'fi', 'fra' => 'fr', 'fry' => 'fy', 'ful' => 'ff', 'kat' => 'ka', 'deu' => 'de', 'gla' => 'gd', 'gle' => 'ga',
-                'glg' => 'gl', 'glv' => 'gv', 'ell' => 'el', 'grn' => 'gn', 'guj' => 'gu', 'hat' => 'ht', 'hau' => 'ha', 'heb' => 'he', 'her' => 'hz', 'hin' => 'hi', 'hmo' => 'ho',
-                'hrv' => 'hr', 'hun' => 'hu', 'ibo' => 'ig', 'isl' => 'is', 'ido' => 'io', 'iii' => 'ii', 'iku' => 'iu', 'ile' => 'ie', 'ina' => 'ia', 'ind' => 'id', 'ipk' => 'ik',
-                'ita' => 'it', 'jav' => 'jv', 'jpn' => 'ja', 'kal' => 'kl', 'kan' => 'kn', 'kas' => 'ks', 'kau' => 'kr', 'kaz' => 'kk', 'khm' => 'km', 'kik' => 'ki', 'kin' => 'rw',
-                'kir' => 'ky', 'kom' => 'kv', 'kon' => 'kg', 'kor' => 'ko', 'kua' => 'kj', 'kur' => 'ku', 'lao' => 'lo', 'lat' => 'la', 'lav' => 'lv', 'lim' => 'li', 'lin' => 'ln',
-                'lit' => 'lt', 'ltz' => 'lb', 'lub' => 'lu', 'lug' => 'lg', 'mkd' => 'mk', 'mah' => 'mh', 'mal' => 'ml', 'mri' => 'mi', 'mar' => 'mr', 'msa' => 'ms', 'mlg' => 'mg',
-                'mlt' => 'mt', 'mon' => 'mn', 'nau' => 'na', 'nav' => 'nv', 'nbl' => 'nr', 'nde' => 'nd', 'ndo' => 'ng', 'nep' => 'ne', 'nno' => 'nn', 'nob' => 'nb', 'nor' => 'no',
-                'nya' => 'ny', 'oci' => 'oc', 'oji' => 'oj', 'ori' => 'or', 'orm' => 'om', 'oss' => 'os', 'pan' => 'pa', 'fas' => 'fa', 'pli' => 'pi', 'pol' => 'pl', 'por' => 'pt',
-                'pus' => 'ps', 'que' => 'qu', 'roh' => 'rm', 'ron' => 'ro', 'run' => 'rn', 'rus' => 'ru', 'sag' => 'sg', 'san' => 'sa', 'sin' => 'si', 'slk' => 'sk', 'slv' => 'sl',
-                'sme' => 'se', 'smo' => 'sm', 'sna' => 'sn', 'snd' => 'sd', 'som' => 'so', 'sot' => 'st', 'spa' => 'es', 'srd' => 'sc', 'srp' => 'sr', 'ssw' => 'ss', 'sun' => 'su',
-                'swa' => 'sw', 'swe' => 'sv', 'tah' => 'ty', 'tam' => 'ta', 'tat' => 'tt', 'tel' => 'te', 'tgk' => 'tg', 'tgl' => 'tl', 'tha' => 'th', 'bod' => 'bo', 'tir' => 'ti',
-                'ton' => 'to', 'tsn' => 'tn', 'tso' => 'ts', 'tuk' => 'tk', 'tur' => 'tr', 'twi' => 'tw', 'uig' => 'ug', 'ukr' => 'uk', 'urd' => 'ur', 'uzb' => 'uz', 'ven' => 've',
-                'vie' => 'vi', 'vol' => 'vo', 'cym' => 'cy', 'wln' => 'wa', 'wol' => 'wo', 'xho' => 'xh', 'yid' => 'yi', 'yor' => 'yo', 'zha' => 'za', 'zul' => 'zu');
-            $langs1 = array();
-            foreach ($mapping as $c2 => $c1) {
-                $langs1[$c1] = $langs2[$c2];
-            }
-            ksort($langs1);
-            return $langs1;
-
-        } else {
-            debugging('Unsupported $standard parameter in get_list_of_languages() method: '.$standard);
-        }
-
-        return array();
-    }
-
-    /**
-     * Checks if the translation exists for the language
-     *
-     * @param string $lang moodle translation language code
-     * @param bool $includeall include also disabled translations
-     * @return bool true if exists
-     */
-    public function translation_exists($lang, $includeall = true) {
-
-        if (strpos($lang, '_local') !== false) {
-            // Local packs are not real translations.
-            return false;
-        }
-        if (!$includeall and !empty($this->translist)) {
-            if (!in_array($lang, $this->translist)) {
-                return false;
-            }
-        }
-        if ($lang === 'en') {
-            // Part of distribution.
-            return true;
-        }
-        return file_exists("$this->otherroot/$lang/langconfig.php");
-    }
-
-    /**
-     * Returns localised list of installed translations
-     *
-     * @param bool $returnall return all or just enabled
-     * @return array moodle translation code => localised translation name
-     */
-    public function get_list_of_translations($returnall = false) {
-        global $CFG;
-
-        $languages = array();
-
-        if (!empty($CFG->langcache) and is_readable($this->menucache)) {
-            // Try to re-use the cached list of all available languages.
-            $cachedlist = json_decode(file_get_contents($this->menucache), true);
-
-            if (is_array($cachedlist) and !empty($cachedlist)) {
-                // The cache file is restored correctly.
-
-                if (!$returnall and !empty($this->translist)) {
-                    // Return just enabled translations.
-                    foreach ($cachedlist as $langcode => $langname) {
-                        if (in_array($langcode, $this->translist)) {
-                            $languages[$langcode] = $langname;
-                        }
-                    }
-                    return $languages;
-
-                } else {
-                    // Return all translations.
-                    return $cachedlist;
-                }
-            }
-        }
-
-        // The cached list of languages is not available, let us populate the list.
-        if (!$returnall and !empty($this->translist)) {
-            // Return only some translations.
-            foreach ($this->translist as $lang) {
-                $lang = trim($lang);   // Just trim spaces to be a bit more permissive.
-                if (strstr($lang, '_local') !== false) {
-                    continue;
-                }
-                if (strstr($lang, '_utf8') !== false) {
-                    continue;
-                }
-                if ($lang !== 'en' and !file_exists("$this->otherroot/$lang/langconfig.php")) {
-                    // Some broken or missing lang - can not switch to it anyway.
-                    continue;
-                }
-                $string = $this->load_component_strings('langconfig', $lang);
-                if (!empty($string['thislanguage'])) {
-                    $languages[$lang] = $string['thislanguage'].' ('. $lang .')';
-                }
-                unset($string);
-            }
-
-        } else {
-            // Return all languages available in system.
-            $langdirs = get_list_of_plugins('', '', $this->otherroot);
-
-            $langdirs = array_merge($langdirs, array("$CFG->dirroot/lang/en" => 'en'));
-            // Sort all.
-
-            // Loop through all langs and get info.
-            foreach ($langdirs as $lang) {
-                if (strstr($lang, '_local') !== false) {
-                    continue;
-                }
-                if (strstr($lang, '_utf8') !== false) {
-                    continue;
-                }
-                $string = $this->load_component_strings('langconfig', $lang);
-                if (!empty($string['thislanguage'])) {
-                    $languages[$lang] = $string['thislanguage'].' ('. $lang .')';
-                }
-                unset($string);
-            }
-
-            if (!empty($CFG->langcache) and !empty($this->menucache)) {
-                // Cache the list so that it can be used next time.
-                core_collator::asort($languages);
-                check_dir_exists(dirname($this->menucache), true, true);
-                file_put_contents($this->menucache, json_encode($languages));
-                @chmod($this->menucache, $CFG->filepermissions);
-            }
-        }
-
-        core_collator::asort($languages);
-
-        return $languages;
-    }
-
-    /**
-     * Returns localised list of currencies.
-     *
-     * @param string $lang moodle translation language, null means use current
-     * @return array currency code => localised currency name
-     */
-    public function get_list_of_currencies($lang = null) {
-        if ($lang === null) {
-            $lang = current_language();
-        }
-
-        $currencies = $this->load_component_strings('core_currencies', $lang);
-        asort($currencies);
-
-        return $currencies;
-    }
-
-    /**
-     * Clears both in-memory and on-disk caches
-     * @param bool $phpunitreset true means called from our PHPUnit integration test reset
-     */
-    public function reset_caches($phpunitreset = false) {
-        global $CFG;
-        require_once("$CFG->libdir/filelib.php");
-
-        // Clear the on-disk disk with aggregated string files.
-        $this->cache->purge();
-
-        if (!$phpunitreset) {
-            // Increment the revision counter.
-            $langrev = get_config('core', 'langrev');
-            $next = time();
-            if ($langrev !== false and $next <= $langrev and $langrev - $next < 60*60) {
-                // This resolves problems when reset is requested repeatedly within 1s,
-                // the < 1h condition prevents accidental switching to future dates
-                // because we might not recover from it.
-                $next = $langrev+1;
-            }
-            set_config('langrev', $next);
-        }
-
-        // Clear the cache containing the list of available translations
-        // and re-populate it again.
-        fulldelete($this->menucache);
-        $this->get_list_of_translations(true);
-
-        // Lang packs use PHP files in dataroot, it is better to invalidate opcode caches.
-        if (function_exists('opcache_reset')) {
-            opcache_reset();
-        }
-    }
-
-    /**
-     * Returns string revision counter, this is incremented after any string cache reset.
-     * @return int lang string revision counter, -1 if unknown
-     */
-    public function get_revision() {
-        global $CFG;
-        if (isset($CFG->langrev)) {
-            return (int)$CFG->langrev;
-        } else {
-            return -1;
-        }
-    }
-
-    // End of external API.
-
-    /**
-     * Helper method that recursively loads all parents of the given language.
-     *
-     * @see self::get_language_dependencies()
-     * @param string $lang language code
-     * @param array $stack list of parent languages already populated in previous recursive calls
-     * @return array list of all parents of the given language with the $lang itself added as the last element
-     */
-    protected function populate_parent_languages($lang, array $stack = array()) {
-
-        // English does not have a parent language.
-        if ($lang === 'en') {
-            return $stack;
-        }
-
-        // Prevent circular dependency (and thence the infinitive recursion loop).
-        if (in_array($lang, $stack)) {
-            return $stack;
-        }
-
-        // Load language configuration and look for the explicit parent language.
-        if (!file_exists("$this->otherroot/$lang/langconfig.php")) {
-            return $stack;
-        }
-        $string = array();
-        include("$this->otherroot/$lang/langconfig.php");
-
-        if (empty($string['parentlanguage']) or $string['parentlanguage'] === 'en') {
-            unset($string);
-            return array_merge(array($lang), $stack);
-
-        } else {
-            $parentlang = $string['parentlanguage'];
-            unset($string);
-            return $this->populate_parent_languages($parentlang, array_merge(array($lang), $stack));
-        }
-    }
-}
-
-
-/**
- * Fetches minimum strings for installation
- *
- * Minimalistic string fetching implementation
- * that is used in installer before we fetch the wanted
- * language pack from moodle.org lang download site.
- *
- * @package    core
- * @copyright  2010 Petr Skoda (http://skodak.org)
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-class install_string_manager implements string_manager {
-    /** @var string location of pre-install packs for all langs */
-    protected $installroot;
-
-    /**
-     * Crate new instance of install string manager
-     */
-    public function __construct() {
-        global $CFG;
-        $this->installroot = "$CFG->dirroot/install/lang";
-    }
-
-    /**
-     * Load all strings for one component
-     * @param string $component The module the string is associated with
-     * @param string $lang
-     * @param bool $disablecache Do not use caches, force fetching the strings from sources
-     * @param bool $disablelocal Do not use customized strings in xx_local language packs
-     * @return array of all string for given component and lang
-     */
-    public function load_component_strings($component, $lang, $disablecache=false, $disablelocal=false) {
-        // Not needed in installer.
-        return array();
-    }
-
-    /**
-     * Does the string actually exist?
-     *
-     * get_string() is throwing debug warnings, sometimes we do not want them
-     * or we want to display better explanation of the problem.
-     *
-     * Use with care!
-     *
-     * @param string $identifier The identifier of the string to search for
-     * @param string $component The module the string is associated with
-     * @return boot true if exists
-     */
-    public function string_exists($identifier, $component) {
-        // Simple old style hack ;).
-        $str = get_string($identifier, $component);
-        return (strpos($str, '[[') === false);
-    }
-
-    /**
-     * Get String returns a requested string
-     *
-     * @param string $identifier The identifier of the string to search for
-     * @param string $component The module the string is associated with
-     * @param string|object|array $a An object, string or number that can be used
-     *      within translation strings
-     * @param string $lang moodle translation language, null means use current
-     * @return string The String !
-     */
-    public function get_string($identifier, $component = '', $a = null, $lang = null) {
-        if (!$component) {
-            $component = 'moodle';
-        }
-
-        if ($lang === null) {
-            $lang = current_language();
-        }
-
-        // Get parent lang.
-        $parent = '';
-        if ($lang !== 'en' and $identifier !== 'parentlanguage' and $component !== 'langconfig') {
-            if (file_exists("$this->installroot/$lang/langconfig.php")) {
-                $string = array();
-                include("$this->installroot/$lang/langconfig.php");
-                if (isset($string['parentlanguage'])) {
-                    $parent = $string['parentlanguage'];
-                }
-                unset($string);
-            }
-        }
-
-        // Include en string first.
-        if (!file_exists("$this->installroot/en/$component.php")) {
-            return "[[$identifier]]";
-        }
-        $string = array();
-        include("$this->installroot/en/$component.php");
-
-        // Now override en with parent if defined.
-        if ($parent and $parent !== 'en' and file_exists("$this->installroot/$parent/$component.php")) {
-            include("$this->installroot/$parent/$component.php");
-        }
-
-        // Finally override with requested language.
-        if ($lang !== 'en' and file_exists("$this->installroot/$lang/$component.php")) {
-            include("$this->installroot/$lang/$component.php");
-        }
-
-        if (!isset($string[$identifier])) {
-            return "[[$identifier]]";
-        }
-
-        $string = $string[$identifier];
-
-        if ($a !== null) {
-            if (is_object($a) or is_array($a)) {
-                $a = (array)$a;
-                $search = array();
-                $replace = array();
-                foreach ($a as $key => $value) {
-                    if (is_int($key)) {
-                        // We do not support numeric keys - sorry!
-                        continue;
-                    }
-                    $search[]  = '{$a->'.$key.'}';
-                    $replace[] = (string)$value;
-                }
-                if ($search) {
-                    $string = str_replace($search, $replace, $string);
-                }
-            } else {
-                $string = str_replace('{$a}', (string)$a, $string);
-            }
-        }
-
-        return $string;
-    }
-
-    /**
-     * Returns a localised list of all country names, sorted by country keys.
-     *
-     * @param bool $returnall return all or just enabled
-     * @param string $lang moodle translation language, null means use current
-     * @return array two-letter country code => translated name.
-     */
-    public function get_list_of_countries($returnall = false, $lang = null) {
-        // Not used in installer.
-        return array();
-    }
-
-    /**
-     * Returns a localised list of languages, sorted by code keys.
-     *
-     * @param string $lang moodle translation language, null means use current
-     * @param string $standard language list standard
-     *                     iso6392: three-letter language code (ISO 639-2/T) => translated name.
-     * @return array language code => translated name
-     */
-    public function get_list_of_languages($lang = null, $standard = 'iso6392') {
-        // Not used in installer.
-        return array();
-    }
-
-    /**
-     * Checks if the translation exists for the language
-     *
-     * @param string $lang moodle translation language code
-     * @param bool $includeall include also disabled translations
-     * @return bool true if exists
-     */
-    public function translation_exists($lang, $includeall = true) {
-        return file_exists($this->installroot.'/'.$lang.'/langconfig.php');
-    }
-
-    /**
-     * Returns localised list of installed translations
-     * @param bool $returnall return all or just enabled
-     * @return array moodle translation code => localised translation name
-     */
-    public function get_list_of_translations($returnall = false) {
-        // Return all is ignored here - we need to know all langs in installer.
-        $languages = array();
-        // Get raw list of lang directories.
-        $langdirs = get_list_of_plugins('install/lang');
-        asort($langdirs);
-        // Get some info from each lang.
-        foreach ($langdirs as $lang) {
-            if (file_exists($this->installroot.'/'.$lang.'/langconfig.php')) {
-                $string = array();
-                include($this->installroot.'/'.$lang.'/langconfig.php');
-                if (!empty($string['thislanguage'])) {
-                    $languages[$lang] = $string['thislanguage'].' ('.$lang.')';
-                }
-            }
-        }
-        // Return array.
-        return $languages;
-    }
-
-    /**
-     * Returns localised list of currencies.
-     *
-     * @param string $lang moodle translation language, null means use current
-     * @return array currency code => localised currency name
-     */
-    public function get_list_of_currencies($lang = null) {
-        // Not used in installer.
-        return array();
-    }
-
-    /**
-     * This implementation does not use any caches.
-     *
-     * @param bool $phpunitreset true means called from our PHPUnit integration test reset
-     */
-    public function reset_caches($phpunitreset = false) {
-        // Nothing to do.
-    }
-
-    /**
-     * Returns string revision counter, this is incremented after any string cache reset.
-     * @return int lang string revision counter, -1 if unknown
-     */
-    public function get_revision() {
-        return -1;
-    }
-}
-
 
 /**
  * Returns a localized string.
@@ -7689,8 +6753,8 @@ function get_string($identifier, $component = '', $a = null, $lazyload = false) 
         return new lang_string($identifier, $component, $a);
     }
 
-    if (debugging('', DEBUG_DEVELOPER) && clean_param($identifier, PARAM_STRINGID) === '') {
-        throw new coding_exception('Invalid string identifier. The identifier cannot be empty. Please fix your get_string() call.');
+    if ($CFG->debugdeveloper && clean_param($identifier, PARAM_STRINGID) === '') {
+        throw new coding_exception('Invalid string identifier. The identifier cannot be empty. Please fix your get_string() call.', DEBUG_DEVELOPER);
     }
 
     // There is now a forth argument again, this time it is a boolean however so
@@ -8035,51 +7099,21 @@ class emoticon_manager {
 /**
  * rc4encrypt
  *
- * Please note that in this version of moodle that the default for rc4encryption is
- * using the slightly more secure password key. There may be an issue when upgrading
- * from an older version of moodle.
- *
- * @todo MDL-31836 Remove the old password key in version 2.4
- * Code also needs to be changed in sessionlib.php
- * @see get_moodle_cookie()
- * @see set_moodle_cookie()
- *
  * @param string $data        Data to encrypt.
- * @param bool $usesecurekey  Lets us know if we are using the old or new secure password key.
  * @return string             The now encrypted data.
  */
-function rc4encrypt($data, $usesecurekey = true) {
-    if (!$usesecurekey) {
-        $passwordkey = 'nfgjeingjk';
-    } else {
-        $passwordkey = get_site_identifier();
-    }
-    return endecrypt($passwordkey, $data, '');
+function rc4encrypt($data) {
+    return endecrypt(get_site_identifier(), $data, '');
 }
 
 /**
  * rc4decrypt
  *
- * Please note that in this version of moodle that the default for rc4encryption is
- * using the slightly more secure password key. There may be an issue when upgrading
- * from an older version of moodle.
- *
- * @todo MDL-31836 Remove the old password key in version 2.4
- * Code also needs to be changed in sessionlib.php
- * @see get_moodle_cookie()
- * @see set_moodle_cookie()
- *
  * @param string $data        Data to decrypt.
- * @param bool $usesecurekey  Lets us know if we are using the old or new secure password key.
  * @return string             The now decrypted data.
  */
-function rc4decrypt($data, $usesecurekey = true) {
-    if (!$usesecurekey) {
-        $passwordkey = 'nfgjeingjk';
-    } else {
-        $passwordkey = get_site_identifier();
-    }
-    return endecrypt($passwordkey, $data, 'de');
+function rc4decrypt($data) {
+    return endecrypt(get_site_identifier(), $data, 'de');
 }
 
 /**
@@ -8155,34 +7189,6 @@ function is_valid_plugin_name($name) {
 }
 
 /**
- * Get a list of all the plugins of a given type that contain a particular file.
- *
- * @param string $plugintype the type of plugin, e.g. 'mod' or 'report'.
- * @param string $file the name of file that must be present in the plugin.
- *      (e.g. 'view.php', 'db/install.xml').
- * @param bool $include if true (default false), the file will be include_once-ed if found.
- * @return array with plugin name as keys (e.g. 'forum', 'courselist') and the path
- *      to the file relative to dirroot as value (e.g. "$CFG->dirroot/mod/forum/view.php").
- */
-function get_plugin_list_with_file($plugintype, $file, $include = false) {
-    global $CFG; // Necessary in case it is referenced by include()d PHP scripts.
-
-    $plugins = array();
-
-    foreach (core_component::get_plugin_list($plugintype) as $plugin => $dir) {
-        $path = $dir . '/' . $file;
-        if (file_exists($path)) {
-            if ($include) {
-                include_once($path);
-            }
-            $plugins[$plugin] = $path;
-        }
-    }
-
-    return $plugins;
-}
-
-/**
  * Get a list of all the plugins of a given type that define a certain API function
  * in a certain file. The plugin component names and function names are returned.
  *
@@ -8197,7 +7203,8 @@ function get_plugin_list_with_file($plugintype, $file, $include = false) {
  */
 function get_plugin_list_with_function($plugintype, $function, $file = 'lib.php') {
     $pluginfunctions = array();
-    foreach (get_plugin_list_with_file($plugintype, $file, true) as $plugin => $notused) {
+    $pluginswithfile = core_component::get_plugin_list_with_file($plugintype, $file, true);
+    foreach ($pluginswithfile as $plugin => $notused) {
         $fullfunction = $plugintype . '_' . $plugin . '_' . $function;
 
         if (function_exists($fullfunction)) {
@@ -8240,7 +7247,7 @@ function get_list_of_plugins($directory='mod', $exclude='', $basedir='') {
         $basedir = $basedir .'/'. $directory;
     }
 
-    if (empty($exclude) and debugging('', DEBUG_DEVELOPER)) {
+    if ($CFG->debugdeveloper and empty($exclude)) {
         // Make sure devs do not use this to list normal plugins,
         // this is intended for general directories that are not plugins!
 
@@ -8422,553 +7429,31 @@ function check_php_version($version='5.2.4') {
 }
 
 /**
- * Checks to see if is the browser operating system matches the specified brand.
+ * Determine if moodle installation requires update.
  *
- * Known brand: 'Windows','Linux','Macintosh','SGI','SunOS','HP-UX'
- *
- * @uses $_SERVER
- * @param string $brand The operating system identifier being tested
- * @return bool true if the given brand below to the detected operating system
- */
-function check_browser_operating_system($brand) {
-    if (empty($_SERVER['HTTP_USER_AGENT'])) {
-        return false;
-    }
-
-    if (preg_match("/$brand/i", $_SERVER['HTTP_USER_AGENT'])) {
-        return true;
-    }
-
-    return false;
-}
-
-/**
- * Checks to see if is a browser matches the specified
- * brand and is equal or better version.
- *
- * @uses $_SERVER
- * @param string $brand The browser identifier being tested
- * @param int $version The version of the browser, if not specified any version (except 5.5 for IE for BC reasons)
- * @return bool true if the given version is below that of the detected browser
- */
-function check_browser_version($brand, $version = null) {
-    if (empty($_SERVER['HTTP_USER_AGENT'])) {
-        return false;
-    }
-
-    $agent = $_SERVER['HTTP_USER_AGENT'];
-
-    switch ($brand) {
-
-        case 'Camino':
-            // OSX browser using Gecke engine.
-            if (strpos($agent, 'Camino') === false) {
-                return false;
-            }
-            if (empty($version)) {
-                return true; // No version specified.
-            }
-            if (preg_match("/Camino\/([0-9\.]+)/i", $agent, $match)) {
-                if (version_compare($match[1], $version) >= 0) {
-                    return true;
-                }
-            }
-            break;
-
-        case 'Firefox':
-            // Mozilla Firefox browsers.
-            if (strpos($agent, 'Iceweasel') === false and strpos($agent, 'Firefox') === false) {
-                return false;
-            }
-            if (empty($version)) {
-                return true; // No version specified..
-            }
-            if (preg_match("/(Iceweasel|Firefox)\/([0-9\.]+)/i", $agent, $match)) {
-                if (version_compare($match[2], $version) >= 0) {
-                    return true;
-                }
-            }
-            break;
-
-        case 'Gecko':
-            // Gecko based browsers.
-            // Do not look for dates any more, we expect real Firefox version here.
-            if (empty($version)) {
-                $version = 1;
-            } else if ($version > 20000000) {
-                // This is just a guess, it is not supposed to be 100% accurate!
-                if (preg_match('/^201/', $version)) {
-                    $version = 3.6;
-                } else if (preg_match('/^200[7-9]/', $version)) {
-                    $version = 3;
-                } else if (preg_match('/^2006/', $version)) {
-                    $version = 2;
-                } else {
-                    $version = 1.5;
-                }
-            }
-            if (preg_match("/(Iceweasel|Firefox)\/([0-9\.]+)/i", $agent, $match)) {
-                // Use real Firefox version if specified in user agent string.
-                if (version_compare($match[2], $version) >= 0) {
-                    return true;
-                }
-            } else if (preg_match("/Gecko\/([0-9\.]+)/i", $agent, $match)) {
-                // Gecko might contain date or Firefox revision, let's just guess the Firefox version from the date.
-                $browserver = $match[1];
-                if ($browserver > 20000000) {
-                    // This is just a guess, it is not supposed to be 100% accurate!
-                    if (preg_match('/^201/', $browserver)) {
-                        $browserver = 3.6;
-                    } else if (preg_match('/^200[7-9]/', $browserver)) {
-                        $browserver = 3;
-                    } else if (preg_match('/^2006/', $version)) {
-                        $browserver = 2;
-                    } else {
-                        $browserver = 1.5;
-                    }
-                }
-                if (version_compare($browserver, $version) >= 0) {
-                    return true;
-                }
-            }
-            break;
-
-        case 'MSIE':
-            // Internet Explorer.
-            if (strpos($agent, 'Opera') !== false) {
-                // Reject Opera.
-                return false;
-            }
-            // In case of IE we have to deal with BC of the version parameter.
-            if (is_null($version)) {
-                $version = 5.5; // Anything older is not considered a browser at all!
-            }
-            // IE uses simple versions, let's cast it to float to simplify the logic here.
-            $version = round($version, 1);
-            // See: http://www.useragentstring.com/pages/Internet%20Explorer/.
-            if (preg_match("/MSIE ([0-9\.]+)/", $agent, $match)) {
-                $browser = $match[1];
-            } else {
-                return false;
-            }
-            // IE8 and later versions may pretend to be IE7 for intranet sites, use Trident version instead,
-            // the Trident should always describe the capabilities of IE in any emulation mode.
-            if ($browser === '7.0' and preg_match("/Trident\/([0-9\.]+)/", $agent, $match)) {
-                $browser = $match[1] + 4; // NOTE: Hopefully this will work also for future IE versions.
-            }
-            $browser = round($browser, 1);
-            return ($browser >= $version);
-            break;
-
-        case 'Opera':
-            // Opera.
-            if (strpos($agent, 'Opera') === false) {
-                return false;
-            }
-            if (empty($version)) {
-                return true; // No version specified.
-            }
-            // Recent Opera useragents have Version/ with the actual version, e.g.:
-            // Opera/9.80 (Windows NT 6.1; WOW64; U; en) Presto/2.10.289 Version/12.01
-            // That's Opera 12.01, not 9.8.
-            if (preg_match("/Version\/([0-9\.]+)/i", $agent, $match)) {
-                if (version_compare($match[1], $version) >= 0) {
-                    return true;
-                }
-            } else if (preg_match("/Opera\/([0-9\.]+)/i", $agent, $match)) {
-                if (version_compare($match[1], $version) >= 0) {
-                    return true;
-                }
-            }
-            break;
-
-        case 'WebKit':
-            // WebKit based browser - everything derived from it (Safari, Chrome, iOS, Android and other mobiles).
-            if (strpos($agent, 'AppleWebKit') === false) {
-                return false;
-            }
-            if (empty($version)) {
-                return true; // No version specified.
-            }
-            if (preg_match("/AppleWebKit\/([0-9.]+)/i", $agent, $match)) {
-                if (version_compare($match[1], $version) >= 0) {
-                    return true;
-                }
-            }
-            break;
-
-        case 'Safari':
-            // Desktop version of Apple Safari browser - no mobile or touch devices.
-            if (strpos($agent, 'AppleWebKit') === false) {
-                return false;
-            }
-            // Look for AppleWebKit, excluding strings with OmniWeb, Shiira and SymbianOS and any other mobile devices
-            if (strpos($agent, 'OmniWeb')) { // Reject OmniWeb.
-                return false;
-            }
-            if (strpos($agent, 'Shiira')) { // Reject Shiira.
-                return false;
-            }
-            if (strpos($agent, 'SymbianOS')) { // Reject SymbianOS.
-                return false;
-            }
-            if (strpos($agent, 'Android')) { // Reject Androids too.
-                return false;
-            }
-            if (strpos($agent, 'iPhone') or strpos($agent, 'iPad') or strpos($agent, 'iPod')) {
-                // No Apple mobile devices here - editor does not work, course ajax is not touch compatible, etc.
-                return false;
-            }
-            if (strpos($agent, 'Chrome')) { // Reject chrome browsers - it needs to be tested explicitly.
-                return false;
-            }
-
-            if (empty($version)) {
-                return true; // No version specified.
-            }
-            if (preg_match("/AppleWebKit\/([0-9.]+)/i", $agent, $match)) {
-                if (version_compare($match[1], $version) >= 0) {
-                    return true;
-                }
-            }
-            break;
-
-        case 'Chrome':
-            if (strpos($agent, 'Chrome') === false) {
-                return false;
-            }
-            if (empty($version)) {
-                return true; // No version specified.
-            }
-            if (preg_match("/Chrome\/(.*)[ ]+/i", $agent, $match)) {
-                if (version_compare($match[1], $version) >= 0) {
-                    return true;
-                }
-            }
-            break;
-
-        case 'Safari iOS':
-            // Safari on iPhone, iPad and iPod touch.
-            if (strpos($agent, 'AppleWebKit') === false or strpos($agent, 'Safari') === false) {
-                return false;
-            }
-            if (!strpos($agent, 'iPhone') and !strpos($agent, 'iPad') and !strpos($agent, 'iPod')) {
-                return false;
-            }
-            if (empty($version)) {
-                return true; // No version specified.
-            }
-            if (preg_match("/AppleWebKit\/([0-9]+)/i", $agent, $match)) {
-                if (version_compare($match[1], $version) >= 0) {
-                    return true;
-                }
-            }
-            break;
-
-        case 'WebKit Android':
-            // WebKit browser on Android.
-            if (strpos($agent, 'Linux; U; Android') === false) {
-                return false;
-            }
-            if (empty($version)) {
-                return true; // No version specified.
-            }
-            if (preg_match("/AppleWebKit\/([0-9]+)/i", $agent, $match)) {
-                if (version_compare($match[1], $version) >= 0) {
-                    return true;
-                }
-            }
-            break;
-    }
-
-    return false;
-}
-
-/**
- * Returns whether a device/browser combination is mobile, tablet, legacy, default or the result of
- * an optional admin specified regular expression.  If enabledevicedetection is set to no or not set
- * it returns default
- *
- * @return string device type
- */
-function get_device_type() {
-    global $CFG;
-
-    if (empty($CFG->enabledevicedetection) || empty($_SERVER['HTTP_USER_AGENT'])) {
-        return 'default';
-    }
-
-    $useragent = $_SERVER['HTTP_USER_AGENT'];
-
-    if (!empty($CFG->devicedetectregex)) {
-        $regexes = json_decode($CFG->devicedetectregex);
-
-        foreach ($regexes as $value => $regex) {
-            if (preg_match($regex, $useragent)) {
-                return $value;
-            }
-        }
-    }
-
-    // Mobile detection PHP direct copy from open source detectmobilebrowser.com.
-    $phonesregex = '/android .+ mobile|avantgo|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|symbian|treo|up\.(browser|link)|vodafone|wap|windows (ce|phone)|xda|xiino/i';
-    $modelsregex = '/1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|e\-|e\/|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(di|rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|xda(\-|2|g)|yas\-|your|zeto|zte\-/i';
-    if (preg_match($phonesregex, $useragent) || preg_match($modelsregex, substr($useragent, 0, 4))) {
-        return 'mobile';
-    }
-
-    $tabletregex = '/Tablet browser|android|iPad|iProd|GT-P1000|GT-I9000|SHW-M180S|SGH-T849|SCH-I800|Build\/ERE27|sholest/i';
-    if (preg_match($tabletregex, $useragent)) {
-         return 'tablet';
-    }
-
-    // Safe way to check for IE6 and not get false positives for some IE 7/8 users.
-    if (substr($_SERVER['HTTP_USER_AGENT'], 0, 34) === 'Mozilla/4.0 (compatible; MSIE 6.0;') {
-        return 'legacy';
-    }
-
-    return 'default';
-}
-
-/**
- * Returns a list of the device types supporting by Moodle
- *
- * @param boolean $incusertypes includes types specified using the devicedetectregex admin setting
- * @return array $types
- */
-function get_device_type_list($incusertypes = true) {
-    global $CFG;
-
-    $types = array('default', 'legacy', 'mobile', 'tablet');
-
-    if ($incusertypes && !empty($CFG->devicedetectregex)) {
-        $regexes = json_decode($CFG->devicedetectregex);
-
-        foreach ($regexes as $value => $regex) {
-            $types[] = $value;
-        }
-    }
-
-    return $types;
-}
-
-/**
- * Returns the theme selected for a particular device or false if none selected.
- *
- * @param string $devicetype
- * @return string|false The name of the theme to use for the device or the false if not set
- */
-function get_selected_theme_for_device_type($devicetype = null) {
-    global $CFG;
-
-    if (empty($devicetype)) {
-        $devicetype = get_user_device_type();
-    }
-
-    $themevarname = get_device_cfg_var_name($devicetype);
-    if (empty($CFG->$themevarname)) {
-        return false;
-    }
-
-    return $CFG->$themevarname;
-}
-
-/**
- * Returns the name of the device type theme var in $CFG because there is not a convention to allow backwards compatibility.
- *
- * @param string $devicetype
- * @return string The config variable to use to determine the theme
- */
-function get_device_cfg_var_name($devicetype = null) {
-    if ($devicetype == 'default' || empty($devicetype)) {
-        return 'theme';
-    }
-
-    return 'theme' . $devicetype;
-}
-
-/**
- * Allows the user to switch the device they are seeing the theme for.
- * This allows mobile users to switch back to the default theme, or theme for any other device.
- *
- * @param string $newdevice The device the user is currently using.
- * @return string The device the user has switched to
- */
-function set_user_device_type($newdevice) {
-    global $USER;
-
-    $devicetype = get_device_type();
-    $devicetypes = get_device_type_list();
-
-    if ($newdevice == $devicetype) {
-        unset_user_preference('switchdevice'.$devicetype);
-    } else if (in_array($newdevice, $devicetypes)) {
-        set_user_preference('switchdevice'.$devicetype, $newdevice);
-    }
-}
-
-/**
- * Returns the device the user is currently using, or if the user has chosen to switch devices
- * for the current device type the type they have switched to.
- *
- * @return string The device the user is currently using or wishes to use
- */
-function get_user_device_type() {
-    $device = get_device_type();
-    $switched = get_user_preferences('switchdevice'.$device, false);
-    if ($switched != false) {
-        return $switched;
-    }
-    return $device;
-}
-
-/**
- * Returns one or several CSS class names that match the user's browser. These can be put
- * in the body tag of the page to apply browser-specific rules without relying on CSS hacks
- *
- * @return array An array of browser version classes
- */
-function get_browser_version_classes() {
-    $classes = array();
-
-    if (check_browser_version("MSIE", "0")) {
-        $classes[] = 'ie';
-        for ($i=12; $i>=6; $i--) {
-            if (check_browser_version("MSIE", $i)) {
-                $classes[] = 'ie'.$i;
-                break;
-            }
-        }
-
-    } else if (check_browser_version("Firefox") || check_browser_version("Gecko") || check_browser_version("Camino")) {
-        $classes[] = 'gecko';
-        if (preg_match('/rv\:([1-2])\.([0-9])/', $_SERVER['HTTP_USER_AGENT'], $matches)) {
-            $classes[] = "gecko{$matches[1]}{$matches[2]}";
-        }
-
-    } else if (check_browser_version("WebKit")) {
-        $classes[] = 'safari';
-        if (check_browser_version("Safari iOS")) {
-            $classes[] = 'ios';
-
-        } else if (check_browser_version("WebKit Android")) {
-            $classes[] = 'android';
-        }
-
-    } else if (check_browser_version("Opera")) {
-        $classes[] = 'opera';
-
-    }
-
-    return $classes;
-}
-
-/**
- * Determine if moodle installation requires update
- *
- * Checks version numbers of main code and all modules to see
- * if there are any mismatches
+ * Checks version numbers of main code and all plugins to see
+ * if there are any mismatches.
  *
  * @return bool
  */
 function moodle_needs_upgrading() {
-    global $CFG, $DB;
+    global $CFG;
 
     if (empty($CFG->version)) {
         return true;
     }
 
-    // We have to purge plugin related caches now to be sure we have fresh data
-    // and new plugins can be detected.
-    cache::make('core', 'plugininfo_base')->purge();
-    cache::make('core', 'plugininfo_mod')->purge();
-    cache::make('core', 'plugininfo_block')->purge();
-    cache::make('core', 'plugininfo_filter')->purge();
-    cache::make('core', 'plugininfo_repository')->purge();
-    cache::make('core', 'plugininfo_portfolio')->purge();
+    // There is no need to purge plugininfo caches here because
+    // these caches are not used during upgrade and they are purged after
+    // every upgrade.
 
-    // Check the main version first.
-    $version = null;
-    include($CFG->dirroot.'/version.php');  // Defines $version and upgrades.
-    if ($version > $CFG->version) {
+    if (empty($CFG->allversionshash)) {
         return true;
     }
 
-    // Modules.
-    $mods = core_component::get_plugin_list('mod');
-    $installed = $DB->get_records('modules', array(), '', 'name, version');
-    foreach ($mods as $mod => $fullmod) {
-        if ($mod === 'NEWMODULE') {   // Someone has unzipped the template, ignore it.
-            continue;
-        }
-        $module = new stdClass();
-        $plugin = new stdClass();
-        if (!is_readable($fullmod.'/version.php')) {
-            continue;
-        }
-        include($fullmod.'/version.php');  // Defines $module with version etc.
-        if (!isset($module->version) and isset($plugin->version)) {
-            $module = $plugin;
-        }
-        if (empty($installed[$mod])) {
-            return true;
-        } else if ($module->version > $installed[$mod]->version) {
-            return true;
-        }
-    }
-    unset($installed);
+    $hash = core_component::get_all_versions_hash();
 
-    // Blocks.
-    $blocks = core_component::get_plugin_list('block');
-    $installed = $DB->get_records('block', array(), '', 'name, version');
-    require_once($CFG->dirroot.'/blocks/moodleblock.class.php');
-    foreach ($blocks as $blockname => $fullblock) {
-        if ($blockname === 'NEWBLOCK') {   // Someone has unzipped the template, ignore it.
-            continue;
-        }
-        if (!is_readable($fullblock.'/version.php')) {
-            continue;
-        }
-        $plugin = new stdClass();
-        $plugin->version = null;
-        include($fullblock.'/version.php');
-        if (empty($installed[$blockname])) {
-            return true;
-        } else if ($plugin->version > $installed[$blockname]->version) {
-            return true;
-        }
-    }
-    unset($installed);
-
-    // Now the rest of plugins.
-    $plugintypes = core_component::get_plugin_types();
-    unset($plugintypes['mod']);
-    unset($plugintypes['block']);
-
-    $versions = $DB->get_records_menu('config_plugins', array('name' => 'version'), 'plugin', 'plugin, value');
-    foreach ($plugintypes as $type => $unused) {
-        $plugs = core_component::get_plugin_list($type);
-        foreach ($plugs as $plug => $fullplug) {
-            $component = $type.'_'.$plug;
-            if (!is_readable($fullplug.'/version.php')) {
-                continue;
-            }
-            $plugin = new stdClass();
-            include($fullplug.'/version.php');  // Defines $plugin with version etc.
-            if (array_key_exists($component, $versions)) {
-                $installedversion = $versions[$component];
-            } else {
-                $installedversion = get_config($component, 'version');
-            }
-            if (empty($installedversion)) { // New installation.
-                return true;
-            } else if ($installedversion < $plugin->version) { // Upgrade.
-                return true;
-            }
-        }
-    }
-
-    return false;
+    return ($hash !== $CFG->allversionshash);
 }
 
 /**
@@ -11166,8 +9651,8 @@ class lang_string {
         // Check if we need to process the string.
         if ($this->string === null) {
             // Check the quality of the identifier.
-            if (debugging('', DEBUG_DEVELOPER) && clean_param($this->identifier, PARAM_STRINGID) === '') {
-                throw new coding_exception('Invalid string identifier. Most probably some illegal character is part of the string identifier. Please check your string definition');
+            if ($CFG->debugdeveloper && clean_param($this->identifier, PARAM_STRINGID) === '') {
+                throw new coding_exception('Invalid string identifier. Most probably some illegal character is part of the string identifier. Please check your string definition', DEBUG_DEVELOPER);
             }
 
             // Process the string.

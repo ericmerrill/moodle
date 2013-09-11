@@ -923,7 +923,13 @@ class question_attempt {
      * @return array name => value pairs.
      */
     protected function get_resume_data() {
-        return $this->behaviour->get_resume_data();
+        $resumedata = $this->behaviour->get_resume_data();
+        foreach ($resumedata as $name => $value) {
+            if ($value instanceof question_file_loader) {
+                $resumedata[$name] = $value->get_question_file_saver();
+            }
+        }
+        return $resumedata;
     }
 
     /**
@@ -975,11 +981,12 @@ class question_attempt {
      */
     protected function process_response_files($name, $draftidname, $postdata = null, $text = null) {
         if ($postdata) {
-            // There can be no files with test data (at the moment).
-            return null;
+            // For simulated posts, get the draft itemid from there.
+            $draftitemid = $this->get_submitted_var($draftidname, PARAM_INT, $postdata);
+        } else {
+            $draftitemid = file_get_submitted_draft_itemid($draftidname);
         }
 
-        $draftitemid = file_get_submitted_draft_itemid($draftidname);
         if (!$draftitemid) {
             return null;
         }
@@ -1011,7 +1018,7 @@ class question_attempt {
      * that it is valid or cleaning it in any way.
      * @return array name => value.
      */
-    protected function get_all_submitted_qt_vars($postdata) {
+    public function get_all_submitted_qt_vars($postdata) {
         if (is_null($postdata)) {
             $postdata = $_POST;
         }
@@ -1020,7 +1027,7 @@ class question_attempt {
         $prefixlen = strlen($this->get_field_prefix());
 
         $submitteddata = array();
-        foreach ($_POST as $name => $value) {
+        foreach ($postdata as $name => $value) {
             if (preg_match($pattern, $name)) {
                 $submitteddata[substr($name, $prefixlen)] = $value;
             }

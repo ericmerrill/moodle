@@ -1515,13 +1515,28 @@ function delete_role($roleid) {
     $DB->delete_records('role_names',          array('roleid'=>$roleid));
     $DB->delete_records('role_context_levels', array('roleid'=>$roleid));
 
-    // finally delete the role itself
-    // get this before the name is gone for logging
-    $rolename = $DB->get_field('role', 'name', array('id'=>$roleid));
+    // Get role record before it's deleted.
+    $role = $DB->get_record('role', array('id'=>$roleid));
 
+    // Finally delete the role itself.
     $DB->delete_records('role', array('id'=>$roleid));
 
-    add_to_log(SITEID, 'role', 'delete', 'admin/roles/action=delete&roleid='.$roleid, $rolename, '');
+    // Trigger event.
+    $event = \core\event\role_deleted::create(
+        array(
+            'context' => context_system::instance(),
+            'objectid' => $roleid,
+            'other' =>
+                array(
+                    'name' => $role->name,
+                    'shortname' => $role->shortname,
+                    'description' => $role->description,
+                    'archetype' => $role->archetype
+                )
+            )
+        );
+    $event->add_record_snapshot('role', $role);
+    $event->trigger();
 
     return true;
 }
@@ -3792,7 +3807,7 @@ function get_users_by_capability(context $context, $capability, $fields = '', $s
             $fields = 'u.*';
         }
     } else {
-        if (debugging('', DEBUG_DEVELOPER) && strpos($fields, 'u.*') === false && strpos($fields, 'u.id') === false) {
+        if ($CFG->debugdeveloper && strpos($fields, 'u.*') === false && strpos($fields, 'u.id') === false) {
             debugging('u.id must be included in the list of fields passed to get_users_by_capability().', DEBUG_DEVELOPER);
         }
     }
@@ -5748,19 +5763,41 @@ class context_helper extends context {
     /**
      * @var array An array mapping context levels to classes
      */
-    private static $alllevels = array(
+    private static $alllevels;
+
+    /**
+     * Instance does not make sense here, only static use
+     */
+    protected function __construct() {
+    }
+
+    /**
+     * Initialise context levels, call before using self::$alllevels.
+     */
+    private static function init_levels() {
+        global $CFG;
+
+        if (isset(self::$alllevels)) {
+            return;
+        }
+        self::$alllevels = array(
             CONTEXT_SYSTEM    => 'context_system',
             CONTEXT_USER      => 'context_user',
             CONTEXT_COURSECAT => 'context_coursecat',
             CONTEXT_COURSE    => 'context_course',
             CONTEXT_MODULE    => 'context_module',
             CONTEXT_BLOCK     => 'context_block',
-    );
+        );
 
-    /**
-     * Instance does not make sense here, only static use
-     */
-    protected function __construct() {
+        if (empty($CFG->custom_context_classes)) {
+            return;
+        }
+
+        // Unsupported custom levels, use with care!!!
+        foreach ($CFG->custom_context_classes as $level => $classname) {
+            self::$alllevels[$level] = $classname;
+        }
+        ksort(self::$alllevels);
     }
 
     /**
@@ -5771,6 +5808,7 @@ class context_helper extends context {
      * @return string class name of the context class
      */
     public static function get_class_for_level($contextlevel) {
+        self::init_levels();
         if (isset(self::$alllevels[$contextlevel])) {
             return self::$alllevels[$contextlevel];
         } else {
@@ -5785,6 +5823,7 @@ class context_helper extends context {
      * @return array int=>string (level=>level class name)
      */
     public static function get_all_levels() {
+        self::init_levels();
         return self::$alllevels;
     }
 
@@ -5797,6 +5836,8 @@ class context_helper extends context {
      */
     public static function cleanup_instances() {
         global $DB;
+        self::init_levels();
+
         $sqls = array();
         foreach (self::$alllevels as $level=>$classname) {
             $sqls[] = $classname::get_cleanup_sql();
@@ -5826,6 +5867,7 @@ class context_helper extends context {
      * @return void
      */
     public static function create_instances($contextlevel = null, $buildpaths = true) {
+        self::init_levels();
         foreach (self::$alllevels as $level=>$classname) {
             if ($contextlevel and $level > $contextlevel) {
                 // skip potential sub-contexts
@@ -5846,6 +5888,7 @@ class context_helper extends context {
      * @return void
      */
     public static function build_all_paths($force = false) {
+        self::init_levels();
         foreach (self::$alllevels as $classname) {
             $classname::build_paths($force);
         }

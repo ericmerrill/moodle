@@ -60,6 +60,11 @@ class behat_hooks extends behat_base {
     protected static $lastbrowsersessionstart = 0;
 
     /**
+     * @var For actions that should only run once.
+     */
+    protected static $initprocessesfinished = false;
+
+    /**
      * Gives access to moodle codebase, ensures all is ready and sets up the test lock.
      *
      * Includes config.php to use moodle codebase with $CFG->behat_*
@@ -84,6 +89,7 @@ class behat_hooks extends behat_base {
 
         // Now that we are MOODLE_INTERNAL.
         require_once(__DIR__ . '/../../behat/classes/behat_command.php');
+        require_once(__DIR__ . '/../../behat/classes/behat_selectors.php');
         require_once(__DIR__ . '/../../behat/classes/util.php');
         require_once(__DIR__ . '/../../testing/classes/test_lock.php');
         require_once(__DIR__ . '/../../testing/classes/nasty_strings.php');
@@ -133,6 +139,11 @@ class behat_hooks extends behat_base {
             throw new coding_exception('Behat only can modify the test database and the test dataroot!');
         }
 
+        // We need the Mink session to do it and we do it only before the first scenario.
+        if (self::is_first_scenario()) {
+            behat_selectors::register_moodle_selectors($this->getSession());
+        }
+
         // Avoid some notices / warnings.
         $SESSION = new stdClass();
 
@@ -160,6 +171,15 @@ class behat_hooks extends behat_base {
 
         // Start always in the the homepage.
         $this->getSession()->visit($this->locate_path('/'));
+
+        // Checking that the root path is a Moodle test site.
+        if (self::is_first_scenario()) {
+            $notestsiteexception = new Exception('The base URL (' . $CFG->wwwroot . ') is not a behat test site, ' .
+                'ensure you started the built-in web server in the correct directory');
+            $this->find("xpath", "//head/child::title[normalize-space(.)='Acceptance test site']", $notestsiteexception);
+
+            self::$initprocessesfinished = true;
+        }
 
         // Closing JS dialogs if present. Otherwise they would block this scenario execution.
         if ($this->running_javascript()) {
@@ -334,4 +354,12 @@ class behat_hooks extends behat_base {
         return preg_replace("/(\n)+/s", "\n", $notags);
     }
 
+    /**
+     * Returns whether the first scenario of the suite is running
+     *
+     * @return bool
+     */
+    protected static function is_first_scenario() {
+        return !(self::$initprocessesfinished);
+    }
 }

@@ -641,6 +641,7 @@ class mssql_native_moodle_database extends moodle_database {
 
             } else {
                 $param = str_replace("'", "''", $param);
+                $param = str_replace("\0", "", $param);
                 $return .= "N'$param'";
             }
 
@@ -1220,7 +1221,7 @@ class mssql_native_moodle_database extends moodle_database {
     }
 
     public function sql_order_by_text($fieldname, $numchars=32) {
-        return ' CONVERT(varchar, ' . $fieldname . ', ' . $numchars . ')';
+        return " CONVERT(varchar({$numchars}), {$fieldname})";
     }
 
    /**

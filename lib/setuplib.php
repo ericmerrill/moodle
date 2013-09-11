@@ -529,8 +529,7 @@ function get_exception_info($ex) {
     // Remove some absolute paths from message and debugging info.
     $searches = array();
     $replaces = array();
-    $cfgnames = array('tempdir', 'cachedir', 'localcachedir', 'themedir',
-        'langmenucachefile', 'langcacheroot', 'dataroot', 'dirroot');
+    $cfgnames = array('tempdir', 'cachedir', 'localcachedir', 'themedir', 'dataroot', 'dirroot');
     foreach ($cfgnames as $cfgname) {
         if (property_exists($CFG, $cfgname)) {
             $searches[] = $CFG->$cfgname;
@@ -730,25 +729,28 @@ function setup_validate_php_configuration() {
 }
 
 /**
- * Initialise global $CFG variable
- * @return void
+ * Initialise global $CFG variable.
+ * @private to be used only from lib/setup.php
  */
 function initialise_cfg() {
     global $CFG, $DB;
 
+    if (!$DB) {
+        // This should not happen.
+        return;
+    }
+
     try {
-        if ($DB) {
-            $localcfg = get_config('core');
-            foreach ($localcfg as $name => $value) {
-                if (property_exists($CFG, $name)) {
-                    // config.php settings always take precedence
-                    continue;
-                }
-                $CFG->{$name} = $value;
-            }
-        }
+        $localcfg = get_config('core');
     } catch (dml_exception $e) {
-        // most probably empty db, going to install soon
+        // Most probably empty db, going to install soon.
+        return;
+    }
+
+    foreach ($localcfg as $name => $value) {
+        // Note that get_config() keeps forced settings
+        // and normalises values to string if possible.
+        $CFG->{$name} = $value;
     }
 }
 
@@ -1026,7 +1028,14 @@ function raise_memory_limit($newlimit) {
         }
 
     } else if ($newlimit == MEMORY_HUGE) {
+        // MEMORY_HUGE uses 2G or MEMORY_EXTRA, whichever is bigger.
         $newlimit = get_real_size('2G');
+        if (!empty($CFG->extramemorylimit)) {
+            $extra = get_real_size($CFG->extramemorylimit);
+            if ($extra > $newlimit) {
+                $newlimit = $extra;
+            }
+        }
 
     } else {
         $newlimit = get_real_size($newlimit);
@@ -1165,7 +1174,7 @@ function disable_output_buffering() {
  */
 function redirect_if_major_upgrade_required() {
     global $CFG;
-    $lastmajordbchanges = 2013080700.00;
+    $lastmajordbchanges = 2013081600.00;
     if (empty($CFG->version) or (float)$CFG->version < $lastmajordbchanges or
             during_initial_install() or !empty($CFG->adminsetuppending)) {
         try {

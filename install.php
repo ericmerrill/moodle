@@ -181,6 +181,9 @@ $CFG->umaskpermissions     = (($CFG->directorypermissions & 0777) ^ 0777);
 $CFG->running_installer    = true;
 $CFG->early_install_lang   = true;
 $CFG->ostype               = (stristr(PHP_OS, 'win') && !stristr(PHP_OS, 'darwin')) ? 'WINDOWS' : 'UNIX';
+$CFG->debug                = (E_ALL | E_STRICT);
+$CFG->debugdisplay         = true;
+$CFG->debugdeveloper       = true;
 
 // Require all needed libs
 require_once($CFG->libdir.'/setuplib.php');
@@ -198,6 +201,9 @@ if (!empty($memlimit) and $memlimit != -1) {
 
 // Continue with lib loading
 require_once($CFG->libdir.'/classes/text.php');
+require_once($CFG->libdir.'/classes/string_manager.php');
+require_once($CFG->libdir.'/classes/string_manager_install.php');
+require_once($CFG->libdir.'/classes/string_manager_standard.php');
 require_once($CFG->libdir.'/weblib.php');
 require_once($CFG->libdir.'/outputlib.php');
 require_once($CFG->libdir.'/dmllib.php');

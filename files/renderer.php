@@ -107,14 +107,14 @@ class core_files_renderer extends plugin_renderer_base {
         $module = array(
             'name'=>'form_filemanager',
             'fullpath'=>'/lib/form/filemanager.js',
-            'requires' => array('core_filepicker', 'base', 'io-base', 'node', 'json', 'core_dndupload', 'panel', 'resize-plugin', 'dd-plugin'),
+            'requires' => array('moodle-core-notification-dialogue', 'core_filepicker', 'base', 'io-base', 'node', 'json', 'core_dndupload', 'panel', 'resize-plugin', 'dd-plugin'),
             'strings' => array(
                 array('error', 'moodle'), array('info', 'moodle'), array('confirmdeletefile', 'repository'),
                 array('draftareanofiles', 'repository'), array('entername', 'repository'), array('enternewname', 'repository'),
                 array('invalidjson', 'repository'), array('popupblockeddownload', 'repository'),
                 array('unknownoriginal', 'repository'), array('confirmdeletefolder', 'repository'),
                 array('confirmdeletefilewithhref', 'repository'), array('confirmrenamefolder', 'repository'),
-                array('confirmrenamefile', 'repository'), array('newfolder', 'repository')
+                array('confirmrenamefile', 'repository'), array('newfolder', 'repository'), array('edit', 'moodle')
             )
         );
         if (empty($filemanagertemplateloaded)) {
@@ -201,9 +201,9 @@ class core_files_renderer extends plugin_renderer_base {
     <div class="fp-navbar">
         <div class="filemanager-toolbar">
             <div class="fp-toolbar">
-                <div class="{!}fp-btn-add"><a href="#"><img src="'.$this->pix_url('a/add_file').'" /> '.$straddfile.'</a></div>
-                <div class="{!}fp-btn-mkdir"><a href="#"><img src="'.$this->pix_url('a/create_folder').'" /> '.$strmakedir.'</a></div>
-                <div class="{!}fp-btn-download"><a href="#"><img src="'.$this->pix_url('a/download_all').'" /> '.$strdownload.'</a></div>
+                <div class="{!}fp-btn-add"><a role="button" href="#"><img src="'.$this->pix_url('a/add_file').'" /> '.$straddfile.'</a></div>
+                <div class="{!}fp-btn-mkdir"><a role="button" href="#"><img src="'.$this->pix_url('a/create_folder').'" /> '.$strmakedir.'</a></div>
+                <div class="{!}fp-btn-download"><a role="button" href="#"><img src="'.$this->pix_url('a/download_all').'" /> '.$strdownload.'</a></div>
             </div>
             <div class="{!}fp-viewbar">
                 <a title="'. get_string('displayicons', 'repository') .'" class="{!}fp-vb-icons" href="#"></a>
@@ -521,13 +521,13 @@ class core_files_renderer extends plugin_renderer_base {
      */
     private function fp_js_template_generallayout() {
         $rv = '
-<div class="file-picker fp-generallayout">
+<div tabindex="0" class="file-picker fp-generallayout" role="dialog" aria-live="assertive">
     <div class="fp-repo-area">
         <ul class="fp-list">
-            <li class="{!}fp-repo"><a href="#"><img class="{!}fp-repo-icon" alt="'. get_string('repositoryicon', 'repository') .'" width="16" height="16" />&nbsp;<span class="{!}fp-repo-name"></span></a></li>
+            <li class="{!}fp-repo"><a href="#"><img class="{!}fp-repo-icon" alt=" " width="16" height="16" />&nbsp;<span class="{!}fp-repo-name"></span></a></li>
         </ul>
     </div>
-    <div class="fp-repo-items">
+    <div class="fp-repo-items" tabindex="0">
         <div class="fp-navbar">
             <div>
                 <div class="{!}fp-toolbar">

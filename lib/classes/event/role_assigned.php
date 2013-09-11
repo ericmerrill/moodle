@@ -28,8 +28,7 @@ class role_assigned extends base {
     protected function init() {
         $this->data['objecttable'] = 'role';
         $this->data['crud'] = 'c';
-        // TODO: MDL-37658 set level
-        $this->data['level'] = 50;
+        $this->data['level'] = self::LEVEL_OTHER;
     }
 
     /**
@@ -74,5 +73,17 @@ class role_assigned extends base {
      */
     protected function get_legacy_eventdata() {
         return $this->get_record_snapshot('role_assignments', $this->data['other']['id']);
+    }
+
+    /**
+     * Returns array of parameters to be passed to legacy add_to_log() function.
+     *
+     * @return array
+     */
+    protected function get_legacy_logdata() {
+        $roles = get_all_roles();
+        $rolenames = role_fix_names($roles, $this->get_context(), ROLENAME_ORIGINAL, true);
+        return array($this->courseid, 'role', 'assign', 'admin/roles/assign.php?contextid='.$this->contextid.'&roleid='.$this->objectid,
+                $rolenames[$this->objectid], '', $this->userid);
     }
 }

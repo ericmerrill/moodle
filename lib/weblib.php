@@ -1216,7 +1216,7 @@ function format_text($text, $format = FORMAT_MOODLE, $options = null, $courseidd
         // the text before storing into database which would be itself big bug..
         $text = str_replace("\"$CFG->httpswwwroot/draftfile.php", "\"$CFG->httpswwwroot/brokenfile.php#", $text);
 
-        if (debugging('', DEBUG_DEVELOPER)) {
+        if ($CFG->debugdeveloper) {
             if (strpos($text, '@@PLUGINFILE@@/') !== false) {
                 debugging('Before calling format_text(), the content must be processed with file_rewrite_pluginfile_urls()',
                     DEBUG_DEVELOPER);
@@ -2792,6 +2792,24 @@ function print_tabs($tabrows, $selected = null, $inactive = null, $activated = n
 }
 
 /**
+ * Alter debugging level for the current request,
+ * the change is not saved in database.
+ *
+ * @param int $level one of the DEBUG_* constants
+ * @param bool $debugdisplay
+ */
+function set_debugging($level, $debugdisplay = null) {
+    global $CFG;
+
+    $CFG->debug = (int)$level;
+    $CFG->debugdeveloper = (($CFG->debug & DEBUG_DEVELOPER) === DEBUG_DEVELOPER);
+
+    if ($debugdisplay !== null) {
+        $CFG->debugdisplay = (bool)$debugdisplay;
+    }
+}
+
+/**
  * Standard Debugging Function
  *
  * Returns true if the current site debugging settings are equal or above specified level.
@@ -2995,11 +3013,12 @@ class progress_bar {
         if (CLI_SCRIPT) {
             return; // Temporary solution for cli scripts.
         }
+        $widthplusborder = $this->width + 2;
         $htmlcode = <<<EOT
-        <div style="text-align:center;width:{$this->width}px;clear:both;padding:0;margin:0 auto;">
+        <div style="text-align:center;width:{$widthplusborder}px;clear:both;padding:0;margin:0 auto;">
             <h2 id="status_{$this->html_id}" style="text-align: center;margin:0 auto"></h2>
             <p id="time_{$this->html_id}"></p>
-            <div id="bar_{$this->html_id}" style="border-style:solid;border-width:1px;width:500px;height:50px;">
+            <div id="bar_{$this->html_id}" style="border-style:solid;border-width:1px;width:{$this->width}px;height:50px;">
                 <div id="progress_{$this->html_id}"
                 style="text-align:center;background:#FFCC66;width:4px;border:1px
                 solid gray;height:38px; padding-top:10px;">&nbsp;<span id="pt_{$this->html_id}"></span>
@@ -3452,11 +3471,8 @@ function get_formatted_help_string($identifier, $component, $ajax = false) {
     global $CFG, $OUTPUT;
     $sm = get_string_manager();
 
-    if (!$sm->string_exists($identifier, $component) ||
-        !$sm->string_exists($identifier . '_help', $component)) {
-        // Strings in the on-disk cache may be dirty - try to rebuild it and check again.
-        $sm->load_component_strings($component, current_language(), true);
-    }
+    // Do not rebuild caches here!
+    // Devs need to learn to purge all caches after any change or disable $CFG->langstringcache.
 
     $data = new stdClass();
 
