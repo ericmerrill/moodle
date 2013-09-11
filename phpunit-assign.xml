@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="lib/phpunit/phpunit.xsd"
+        bootstrap="lib/phpunit/bootstrap.php"
+        convertErrorsToExceptions="true"
+        convertNoticesToExceptions="true"
+        convertWarningsToExceptions="true"
+        processIsolation="false"
+        backupGlobals="false"
+        backupStaticAttributes="false"
+        stopOnError="false"
+        stopOnFailure="false"
+        stopOnIncomplete="false"
+        stopOnSkipped="false"
+        strict="false"
+        printerClass="Hint_ResultPrinter"
+        testSuiteLoaderClass="phpunit_autoloader"
+        >
+
+    <php>
+        <!--<const name="PHPUNIT_LONGTEST" value="1"/> uncomment to execute also slow or otherwise expensive tests-->
+    </php>
+
+<!--All core suites need to be manually added here-->
+
+    <testsuites>
+
+        <!--Plugin suites: use admin/tool/phpunit/cli/util.php to build phpunit.xml from phpunit.xml.dist with up-to-date list of plugins in current install-->
+        <testsuite name="assignsubmission_file test suite">
+            <directory suffix="_test.php">mod/assign/submission/file/tests</directory>
+        </testsuite>
+        <testsuite name="assignsubmission_onlinetext test suite">
+            <directory suffix="_test.php">mod/assign/submission/onlinetext/tests</directory>
+        </testsuite>
+        <testsuite name="mod_assign test suite">
+            <directory suffix="_test.php">mod/assign/tests</directory>
+        </testsuite>
+
+    </testsuites>
+
+</phpunit>

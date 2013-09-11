@@ -139,4 +139,14 @@ class mod_assign_lib_testcase extends mod_assign_base_testcase {
         $this->assertTrue($result);
     }
 
+    public function test_assign_grade_item_update() {
+        $assign = $this->create_instance(array('grade' => 70));
+        $cm = $assign->get_course_module();
+
+        //$gradeitem = grade_get_grade_items_for_activity($cm, true);
+        $gradeitem = grade_item::fetch_all(array('itemtype'=>'mod', 'itemmodule'=>$cm->modname, 'iteminstance'=>$cm->instance, 'courseid'=>$cm->course, 'itemnumber'=>0));
+
+        print_r($gradeitem);
+    }
+
 }
