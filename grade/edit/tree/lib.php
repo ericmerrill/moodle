@@ -806,6 +806,8 @@ class grade_edit_tree_column_range extends grade_edit_tree_column {
                 $scale_items = explode(',', $scale->scale);
             }
             $grademax = end($scale_items) . ' (' . count($scale_items) . ')';
+        } elseif ($item->gradetype == GRADE_TYPE_TEXT) {
+            $grademax = ' - ';
         } elseif ($item->is_external_item()) {
             $grademax = format_float($item->grademax, $item->get_decimals());
         } else {
