@@ -65,6 +65,8 @@ A tick next to the activity name on the course page indicates when the activity 
 $string['completion_link'] = 'activity/completion';
 $string['completion_manual'] = 'Students can manually mark the activity as completed';
 $string['completion_none'] = 'Do not indicate activity completion';
+$string['completionactivitydefault'] = 'Use activity default';
+$string['completiondefault'] = 'Default completion tracking';
 $string['completiondisabled'] = 'Disabled, not shown in activity settings';
 $string['completionenabled'] = 'Enabled, control via completion and activity settings';
 $string['completionexpected'] = 'Expect completed on';
@@ -76,6 +78,7 @@ If a box with a dotted border is shown, a tick will appear automatically when yo
 
 If a box with a solid border is shown, you can click it to tick the box when you think you have completed the activity. (Clicking it again removes the tick if you change your mind.) The tick is optional and is simply a way of tracking your progress through the course.';
 $string['completionmenuitem'] = 'Completion';
+$string['completionnodefault'] = 'Off';
 $string['completionnotenabled'] = 'Completion is not enabled';
 $string['completionnotenabledforcourse'] = 'Completion is not enabled for this course';
 $string['completionnotenabledforsite'] = 'Completion is not enabled for this site';
@@ -88,6 +91,7 @@ $string['completionusegrade_desc'] = 'Student must receive a grade to complete t
 $string['completionusegrade_help'] = 'If enabled, the activity is considered complete when a student receives a grade. Pass and fail icons may be displayed if a pass grade for the activity has been set.';
 $string['completionview'] = 'Require view';
 $string['completionview_desc'] = 'Student must view this activity to complete it';
+$string['configcompletiondefault'] = 'The default setting for completion tracking when creating new activities.';
 $string['configenablecompletion'] = 'When enabled, this lets you turn on completion tracking (progress) features at course level.';
 $string['confirmselfcompletion'] = 'Confirm self completion';
 $string['courseaggregation'] = 'Condition requires';
