@@ -6864,7 +6864,6 @@ function forum_tp_can_track_forums($forum=false, $user=false) {
         return (bool)$user->trackforums;
     }
 
-
     // Work toward always passing an object...
     if (is_numeric($forum)) {
         debugging('Better use proper forum object.', DEBUG_DEVELOPER);
@@ -6874,7 +6873,7 @@ function forum_tp_can_track_forums($forum=false, $user=false) {
     $forumallows = ($forum->trackingtype == FORUM_TRACKING_OPTIONAL);
     $forumforced = ($forum->trackingtype == FORUM_TRACKING_ON);
 
-    return ($forumforced || $forumallows)  && !empty($user->trackforums);
+    return ($forumforced || ($forumallows  && (!empty($user->trackforums) && (bool)$user->trackforums)));
 }
 
 /**
@@ -8050,23 +8049,20 @@ class forum_existing_subscriber_selector extends forum_subscriber_selector_base 
  * @param cm_info $cm Course-module object
  */
 function forum_cm_info_view(cm_info $cm) {
-    global $CFG;
+    global $CFG, $DB;
 
-    // Get tracking status (once per request)
-    static $initialised;
-    static $usetracking, $strunreadpostsone;
-    if (!isset($initialised)) {
-        if ($usetracking = forum_tp_can_track_forums()) {
-            $strunreadpostsone = get_string('unreadpostsone', 'forum');
-        }
-        $initialised = true;
+    if (!$forum = $DB->get_record('forum', array('id' => $cm->instance))) {
+        // Something has gone wrong here.
+        return;
     }
+
+    $usetracking = forum_tp_can_track_forums($forum);
 
     if ($usetracking) {
         if ($unread = forum_tp_count_forum_unread_posts($cm, $cm->get_course())) {
             $out = '<span class="unread"> <a href="' . $cm->get_url() . '">';
             if ($unread == 1) {
-                $out .= $strunreadpostsone;
+                $out .= get_string('unreadpostsone', 'forum');
             } else {
                 $out .= get_string('unreadpostsnumber', 'forum', $unread);
             }

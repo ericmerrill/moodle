@@ -123,4 +123,49 @@ class mod_forum_lib_testcase extends advanced_testcase {
             $this->assertContains($course->shortname, array($course1->shortname, $course2->shortname));
         }
     }
+
+    /**
+     * Test the logic in the forum_tp_can_track_forums() function.
+     */
+    public function test_forum_tp_can_track_forums() {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $useron = $this->getDataGenerator()->create_user(array('trackforums' => 1));
+        $useroff = $this->getDataGenerator()->create_user(array('trackforums' => 0));
+        $course = $this->getDataGenerator()->create_course();
+        $options = array('course' => $course->id, 'trackingtype' => 0); // Off.
+        $forumoff = $this->getDataGenerator()->create_module('forum', $options);
+
+        $options = array('course' => $course->id, 'trackingtype' => 2); // On.
+        $forumon = $this->getDataGenerator()->create_module('forum', $options);
+
+        $options = array('course' => $course->id, 'trackingtype' => 1); // Optional.
+        $forumoptional = $this->getDataGenerator()->create_module('forum', $options);
+
+        // User on, forum off, should be off.
+        $result = forum_tp_can_track_forums($forumoff, $useron);
+        $this->assertEquals(false, $result);
+
+        // User on, forum on, should be on.
+        $result = forum_tp_can_track_forums($forumon, $useron);
+        $this->assertEquals(true, $result);
+
+        // User on, forum optional, should be on.
+        $result = forum_tp_can_track_forums($forumoptional, $useron);
+        $this->assertEquals(true, $result);
+
+        // User off, forum off, should be off.
+        $result = forum_tp_can_track_forums($forumoff, $useroff);
+        $this->assertEquals(false, $result);
+
+        // User off, forum on, should be on.
+        $result = forum_tp_can_track_forums($forumon, $useroff);
+        $this->assertEquals(true, $result);
+
+        // User off, forum optional, should be off.
+        $result = forum_tp_can_track_forums($forumoptional, $useroff);
+        $this->assertEquals(false, $result);
+    }
 }
