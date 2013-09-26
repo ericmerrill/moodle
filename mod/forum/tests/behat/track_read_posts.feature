@@ -8,18 +8,20 @@ Feature: A teacher can set one of 3 possible options for tracking read forum pos
     Given the following "users" exists:
       | username | firstname | lastname | email | trackforums |
       | student1 | Student | 1 | student1@asd.com | 1 |
+      | student2 | Student | 2 | student2@asd.com | 0 |
     And the following "courses" exists:
       | fullname | shortname | category |
       | Course 1 | C1 | 0 |
     And the following "course enrolments" exists:
       | user | course | role |
       | student1 | C1 | student |
+      | student2 | C1 | student |
     And I log in as "admin"
     And I follow "Course 1"
     And I turn editing mode on
 
   @javascript
-  Scenario: Tracking forum posts on
+  Scenario: Tracking forum posts on with user tracking on
     Given I add a "Forum" to section "1" and I fill the form with:
       | Forum name | Test forum name |
       | Forum type | Standard forum for general use |
@@ -31,6 +33,27 @@ Feature: A teacher can set one of 3 possible options for tracking read forum pos
     And I wait "6" seconds
     And I log out
     When I log in as "student1"
+    And I follow "Course 1"
+    Then I should see "1 unread post"
+    And I follow "1 unread post"
+    And I should not see "Don't track unread posts"
+    And I follow "Test post subject"
+    And I follow "Course 1"
+    And I should not see "1 unread post"
+
+  @javascript
+  Scenario: Tracking forum posts on with user tracking off
+    Given I add a "Forum" to section "1" and I fill the form with:
+      | Forum name | Test forum name |
+      | Forum type | Standard forum for general use |
+      | Description | Test forum description |
+      | Read tracking | On |
+    And I add a new discussion to "Test forum name" forum with:
+      | Subject | Test post subject |
+      | Message | Test post message |
+    And I wait "6" seconds
+    And I log out
+    When I log in as "student2"
     And I follow "Course 1"
     Then I should see "1 unread post"
     And I follow "1 unread post"
@@ -58,7 +81,7 @@ Feature: A teacher can set one of 3 possible options for tracking read forum pos
     And I should not see "Track unread posts"
 
   @javascript
-  Scenario: Tracking forum posts optional
+  Scenario: Tracking forum posts optional with user tracking on
     Given I add a "Forum" to section "1" and I fill the form with:
       | Forum name | Test forum name |
       | Forum type | Standard forum for general use |
@@ -83,3 +106,21 @@ Feature: A teacher can set one of 3 possible options for tracking read forum pos
     And I follow "1"
     And I follow "Course 1"
     And I should not see "1 unread post"
+
+  @javascript
+  Scenario: Tracking forum posts optional with user tracking off
+    Given I add a "Forum" to section "1" and I fill the form with:
+      | Forum name | Test forum name |
+      | Forum type | Standard forum for general use |
+      | Description | Test forum description |
+      | Read tracking | Off |
+    And I add a new discussion to "Test forum name" forum with:
+      | Subject | Test post subject |
+      | Message | Test post message |
+    And I wait "6" seconds
+    And I log out
+    When I log in as "student2"
+    And I follow "Course 1"
+    Then I should not see "1 unread post"
+    And I follow "Test forum name"
+    And I should not see "Track unread posts"

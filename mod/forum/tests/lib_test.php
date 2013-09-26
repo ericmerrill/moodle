@@ -201,4 +201,110 @@ class mod_forum_lib_testcase extends advanced_testcase {
         $this->assertInstanceOf('\core\event\user_enrolment_deleted', $event);
         $this->assertEquals('user_unenrolled', $event->get_legacy_eventname());
     }
+
+    /**
+     * Test the logic in the forum_tp_can_track_forums() function.
+     */
+    public function test_forum_tp_can_track_forums() {
+        $this->resetAfterTest();
+
+        $useron = $this->getDataGenerator()->create_user(array('trackforums' => 1));
+        $useroff = $this->getDataGenerator()->create_user(array('trackforums' => 0));
+        $course = $this->getDataGenerator()->create_course();
+        $options = array('course' => $course->id, 'trackingtype' => 0); // Off.
+        $forumoff = $this->getDataGenerator()->create_module('forum', $options);
+
+        $options = array('course' => $course->id, 'trackingtype' => 2); // On.
+        $forumon = $this->getDataGenerator()->create_module('forum', $options);
+
+        $options = array('course' => $course->id, 'trackingtype' => 1); // Optional.
+        $forumoptional = $this->getDataGenerator()->create_module('forum', $options);
+
+        // User on, forum off, should be off.
+        $result = forum_tp_can_track_forums($forumoff, $useron);
+        $this->assertEquals(false, $result);
+
+        // User on, forum on, should be on.
+        $result = forum_tp_can_track_forums($forumon, $useron);
+        $this->assertEquals(true, $result);
+
+        // User on, forum optional, should be on.
+        $result = forum_tp_can_track_forums($forumoptional, $useron);
+        $this->assertEquals(true, $result);
+
+        // User off, forum off, should be off.
+        $result = forum_tp_can_track_forums($forumoff, $useroff);
+        $this->assertEquals(false, $result);
+
+        // User off, forum on, should be on.
+        $result = forum_tp_can_track_forums($forumon, $useroff);
+        $this->assertEquals(true, $result);
+
+        // User off, forum optional, should be off.
+        $result = forum_tp_can_track_forums($forumoptional, $useroff);
+        $this->assertEquals(false, $result);
+    }
+
+    /**
+     * Test the logic in the forum_tp_get_course_unread_posts() function.
+     */
+    public function test_forum_tp_get_course_unread_posts() {
+        $this->resetAfterTest();
+
+        $useron = $this->getDataGenerator()->create_user(array('trackforums' => 1));
+        $useroff = $this->getDataGenerator()->create_user(array('trackforums' => 0));
+        $course = $this->getDataGenerator()->create_course();
+        $options = array('course' => $course->id, 'trackingtype' => 0); // Off.
+        $forumoff = $this->getDataGenerator()->create_module('forum', $options);
+
+        $options = array('course' => $course->id, 'trackingtype' => 2); // On.
+        $forumon = $this->getDataGenerator()->create_module('forum', $options);
+
+        $options = array('course' => $course->id, 'trackingtype' => 1); // Optional.
+        $forumoptional = $this->getDataGenerator()->create_module('forum', $options);
+
+        // Add discussions to the tracking off forum.
+        $record = new stdClass();
+        $record->course = $course->id;
+        $record->userid = $useron->id;
+        $record->forum = $forumoff->id;
+        $discussionoff = $this->getDataGenerator()->get_plugin_generator('mod_forum')->create_discussion($record);
+
+        // Add discussions to the tracking on forum.
+        $record = new stdClass();
+        $record->course = $course->id;
+        $record->userid = $useron->id;
+        $record->forum = $forumon->id;
+        $discussionon = $this->getDataGenerator()->get_plugin_generator('mod_forum')->create_discussion($record);
+
+        // Add post to the tracking on discussion.
+        $record = new stdClass();
+        $record->course = $course->id;
+        $record->userid = $useroff->id;
+        $record->forum = $forumon->id;
+        $record->discussion = $discussionon->id;
+        $this->getDataGenerator()->get_plugin_generator('mod_forum')->create_post($record);
+
+        // Add discussions to the tracking optional forum.
+        $record = new stdClass();
+        $record->course = $course->id;
+        $record->userid = $useron->id;
+        $record->forum = $forumoptional->id;
+        $discussionoptional = $this->getDataGenerator()->get_plugin_generator('mod_forum')->create_discussion($record);
+
+        $result = forum_tp_get_course_unread_posts($useron->id, $course->id);
+        $this->assertEquals(2, count($result));
+        $this->assertEquals(false, isset($result[$forumoff->id]));
+        $this->assertEquals(true, isset($result[$forumon->id]));
+        $this->assertEquals(2, $result[$forumon->id]->unread);
+        $this->assertEquals(true, isset($result[$forumoptional->id]));
+        $this->assertEquals(1, $result[$forumoptional->id]->unread);
+
+        $result = forum_tp_get_course_unread_posts($useroff->id, $course->id);
+        $this->assertEquals(1, count($result));
+        $this->assertEquals(false, isset($result[$forumoff->id]));
+        $this->assertEquals(true, isset($result[$forumon->id]));
+        $this->assertEquals(2, $result[$forumon->id]->unread);
+        $this->assertEquals(false, isset($result[$forumoptional->id]));
+    }
 }

@@ -6639,9 +6639,9 @@ function forum_tp_count_forum_read_records($userid, $forumid, $groupid=false) {
 function forum_tp_get_course_unread_posts($userid, $courseid) {
     global $CFG, $DB;
 
-    $now = round(time(), -2); // db cache friendliness
-    $cutoffdate = $now - ($CFG->forum_oldpostdays*24*60*60);
-    $params = array($userid, $userid, $courseid, $cutoffdate);
+    $now = round(time(), -2); // DB cache friendliness.
+    $cutoffdate = $now - ($CFG->forum_oldpostdays * 24 * 60 * 60);
+    $params = array($userid, $userid, $courseid, $cutoffdate, $userid);
 
     if (!empty($CFG->forum_enabletimedposts)) {
         $timedsql = "AND d.timestart < ? AND (d.timeend = 0 OR d.timeend > ?)";
@@ -6661,7 +6661,8 @@ function forum_tp_get_course_unread_posts($userid, $courseid) {
              WHERE f.course = ?
                    AND p.modified >= ? AND r.id is NULL
                    AND (f.trackingtype = ".FORUM_TRACKING_ON."
-                        OR (f.trackingtype = ".FORUM_TRACKING_OPTIONAL." AND tf.id IS NULL))
+                        OR (f.trackingtype = ".FORUM_TRACKING_OPTIONAL." AND tf.id IS NULL
+                            AND (SELECT trackforums FROM {user} WHERE id = ?) = 1))
                    $timedsql
           GROUP BY f.id";
 
@@ -6809,9 +6810,10 @@ function forum_tp_get_untracked_forums($userid, $courseid) {
                    LEFT JOIN {forum_track_prefs} ft ON (ft.forumid = f.id AND ft.userid = ?)
              WHERE f.course = ?
                    AND (f.trackingtype = ".FORUM_TRACKING_OFF."
-                        OR (f.trackingtype = ".FORUM_TRACKING_OPTIONAL." AND ft.id IS NOT NULL))";
+                        OR (f.trackingtype = ".FORUM_TRACKING_OPTIONAL." AND (ft.id IS NOT NULL 
+                            OR (SELECT trackforums FROM {user} WHERE id = ?) = 0)))";
 
-    if ($forums = $DB->get_records_sql($sql, array($userid, $courseid))) {
+    if ($forums = $DB->get_records_sql($sql, array($userid, $courseid, $userid))) {
         foreach ($forums as $forum) {
             $forums[$forum->id] = $forum;
         }
@@ -6852,8 +6854,8 @@ function forum_tp_can_track_forums($forum=false, $user=false) {
     }
 
     if ($forum === false) {
-        // general abitily to track forums
-        return (bool)$user->trackforums;
+        // Since we can force tracking, assume yes without a specific forum.
+        return true;
     }
 
 
@@ -6866,7 +6868,7 @@ function forum_tp_can_track_forums($forum=false, $user=false) {
     $forumallows = ($forum->trackingtype == FORUM_TRACKING_OPTIONAL);
     $forumforced = ($forum->trackingtype == FORUM_TRACKING_ON);
 
-    return ($forumforced || $forumallows)  && !empty($user->trackforums);
+    return ($forumforced || ($forumallows  && (!empty($user->trackforums) && (bool)$user->trackforums)));
 }
 
 /**
@@ -7987,29 +7989,15 @@ class forum_existing_subscriber_selector extends forum_subscriber_selector_base 
  * @param cm_info $cm Course-module object
  */
 function forum_cm_info_view(cm_info $cm) {
-    global $CFG;
-
-    // Get tracking status (once per request)
-    static $initialised;
-    static $usetracking, $strunreadpostsone;
-    if (!isset($initialised)) {
-        if ($usetracking = forum_tp_can_track_forums()) {
-            $strunreadpostsone = get_string('unreadpostsone', 'forum');
+    if ($unread = forum_tp_count_forum_unread_posts($cm, $cm->get_course())) {
+        $out = '<span class="unread"> <a href="' . $cm->get_url() . '">';
+        if ($unread == 1) {
+            $out .= get_string('unreadpostsone', 'forum');;
+        } else {
+            $out .= get_string('unreadpostsnumber', 'forum', $unread);
         }
-        $initialised = true;
-    }
-
-    if ($usetracking) {
-        if ($unread = forum_tp_count_forum_unread_posts($cm, $cm->get_course())) {
-            $out = '<span class="unread"> <a href="' . $cm->get_url() . '">';
-            if ($unread == 1) {
-                $out .= $strunreadpostsone;
-            } else {
-                $out .= get_string('unreadpostsnumber', 'forum', $unread);
-            }
-            $out .= '</a></span>';
-            $cm->set_after_link($out);
-        }
+        $out .= '</a></span>';
+        $cm->set_after_link($out);
     }
 }
 
