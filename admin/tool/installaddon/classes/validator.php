@@ -232,7 +232,7 @@ class tool_installaddon_validator {
      */
     protected function validate_files_layout() {
 
-        if (!is_array($this->extractfiles) or count($this->extractfiles) < 4) {
+        if (!is_array($this->extractfiles) or count($this->extractfiles) < 1) {
             // We need the English language pack with the name of the plugin at least
             $this->add_message(self::ERROR, 'filesnumber');
             return false;
@@ -370,13 +370,6 @@ class tool_installaddon_validator {
 
         if (!isset($this->assertions['plugintype'])) {
             throw new coding_exception('Required plugin type must be set before calling this');
-        }
-
-        if (!isset($this->extractfiles[$this->rootdir.'/lang/en/'])
-                or $this->extractfiles[$this->rootdir.'/lang/en/'] !== true
-                or !is_dir($this->extractdir.'/'.$this->rootdir.'/lang/en')) {
-            $this->add_message(self::ERROR, 'missinglangenfolder');
-            return false;
         }
 
         $langfiles = array();
