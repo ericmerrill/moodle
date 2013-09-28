@@ -73,9 +73,7 @@ class tool_installaddon_validator_test extends basic_testcase {
             array('file' => 'one/version.php', 'status' => 'Can not write target file')));
 
         // Insufficient number of extracted files
-        $validator = testable_tool_installaddon_validator::instance($fixtures.'/emptydir', array(
-            'emptydir/' => true,
-            'emptydir/README.txt' => true));
+        $validator = testable_tool_installaddon_validator::instance($fixtures.'/emptydir', array());
         $this->assertFalse($validator->execute());
         $this->assertTrue($this->has_message($validator->get_messages(), $validator::ERROR, 'filesnumber'));
 
@@ -180,7 +178,7 @@ class tool_installaddon_validator_test extends basic_testcase {
         $validator->assert_plugin_type('mod');
         $validator->assert_moodle_version(0);
         $this->assertFalse($validator->execute());
-        $this->assertTrue($this->has_message($validator->get_messages(), $validator::ERROR, 'missinglangenfolder'));
+        $this->assertTrue($this->has_message($validator->get_messages(), $validator::ERROR, 'missinglangenfile'));
 
         $validator = testable_tool_installaddon_validator::instance($fixtures.'/nolang', array(
             'bah/' => true,
@@ -221,6 +219,15 @@ class tool_installaddon_validator_test extends basic_testcase {
             'noversion/' => true,
             'noversion/lang/' => true,
             'noversion/lang/en/' => true,
+            'noversion/lang/en/theme_noversion.php' => true));
+        $validator->assert_plugin_type('theme');
+        $validator->assert_moodle_version(0);
+        $this->assertTrue($validator->execute());
+        $this->assertTrue($this->has_message($validator->get_messages(), $validator::DEBUG, 'foundlangfile', 'theme_noversion'));
+        $this->assertEquals('theme_noversion', $validator->get_language_file_name());
+
+        // Test alternate packing that doesn't enumerate directories.
+        $validator = testable_tool_installaddon_validator::instance($fixtures.'/noversiontheme', array(
             'noversion/lang/en/theme_noversion.php' => true));
         $validator->assert_plugin_type('theme');
         $validator->assert_moodle_version(0);
