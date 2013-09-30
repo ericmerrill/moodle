@@ -63,6 +63,12 @@ class cachestore_memcached extends cache_store implements cache_is_configurable 
     protected $servers = array();
 
     /**
+     * An array of servers to purge
+     * @var array
+     */
+    protected $purgeservers = array();
+
+    /**
      * The options used when establishing the connection
      * @var array
      */
@@ -103,6 +109,11 @@ class cachestore_memcached extends cache_store implements cache_is_configurable 
         }
         if (!is_array($configuration['servers'])) {
             $configuration['servers'] = array($configuration['servers']);
+        }
+
+        if (isset($configuration['purgeservers'])) {
+            // Since this is rarely used, we'll just store it, and parse it if needed.
+            $this->purgeservers = $configuration['purgeservers'];
         }
 
         $compression = array_key_exists('compression', $configuration) ? (bool)$configuration['compression'] : true;
@@ -325,6 +336,29 @@ class cachestore_memcached extends cache_store implements cache_is_configurable 
             $this->connection->flush();
         }
 
+        // Purge all servers in the purge list.
+        if (!empty($this->purgeservers)) {
+            foreach ($this->purgeservers as $purgeserver) {
+                if (!is_array($purgeserver)) {
+                    $purgeserver = explode(':', $purgeserver, 3);
+                }
+                if (count($purgeserver) > 2) {
+                    debugging('Memcached purge server ' . $purgeserver[0] . ' has too many parameters.');
+                }
+                if (!array_key_exists(1, $purgeserver)) {
+                    $purgeserver[1] = 11211;
+                }
+
+                // Setup and flush the server. These don't need to be persistent, so no id is passed.
+                $connection = new Memcached();
+                foreach ($this->options as $key => $value) {
+                    $connection->setOption($key, $value);
+                }
+                $connection->addServer($purgeserver[0], $purgeserver[1]);
+                @$connection->flush();
+            }
+        }
+
         return true;
     }
 
@@ -377,8 +411,21 @@ class cachestore_memcached extends cache_store implements cache_is_configurable 
             $line = trim($line, ':');
             $servers[] = explode(':', $line, 3);
         }
+
+        $lines = explode("\n", $data->purgeservers);
+        $purgeservers = array();
+        foreach ($lines as $line) {
+            $line = trim($line);
+            $line = trim($line, ':');
+            $purgeserver = explode(':', $line, 3);
+            if (count($purgeserver) > 2) {
+                debugging('Memcached purge server ' . $purgeserver[0] . ' has too many parameters.');
+            }
+            $purgeservers[] = $purgeserver;
+        }
         return array(
             'servers' => $servers,
+            'purgeservers' => $purgeservers,
             'compression' => $data->compression,
             'serialiser' => $data->serialiser,
             'prefix' => $data->prefix,
@@ -401,6 +448,13 @@ class cachestore_memcached extends cache_store implements cache_is_configurable 
                 $servers[] = join(":", $server);
             }
             $data['servers'] = join("\n", $servers);
+        }
+        if (!empty($config['purgeservers'])) {
+            $purgeservers = array();
+            foreach ($config['purgeservers'] as $purgeserver) {
+                $purgeservers[] = join(':', $purgeserver);
+            }
+            $data['purgeservers'] = join("\n", $purgeservers);
         }
         if (isset($config['compression'])) {
             $data['compression'] = (bool)$config['compression'];

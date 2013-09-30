@@ -43,6 +43,17 @@ $string['pluginname'] = 'Memcached';
 $string['prefix'] = 'Prefix key';
 $string['prefix_help'] = 'This can be used to create a "domain" for your item keys allowing you to create multiple memcached stores on a single memcached installation. It cannot be longer than 16 characters in order to ensure key length issues are not encountered.';
 $string['prefixinvalid'] = 'Invalid prefix. You can only use a-z A-Z 0-9-_.';
+$string['purgeservers'] = 'Additional servers to purge';
+$string['purgeservers_help'] = 'This is a list of servers that will be purged when this cache is purged, in addition to the servers listed above.
+Servers should be defined one per line and consist of a server address and optionally a port.
+If no port is provided then the default port (11211) is used.
+
+For example:
+<pre>
+server.url.com
+ipaddress:port
+servername:port
+</pre>';
 $string['serialiser_igbinary'] = 'The igbinary serializer.';
 $string['serialiser_json'] = 'The JSON serializer.';
 $string['serialiser_php'] = 'The default PHP serializer.';

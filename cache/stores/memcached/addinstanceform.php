@@ -74,5 +74,10 @@ class cachestore_memcached_addinstance_form extends cachestore_addinstance_form 
         $form->addHelpButton('bufferwrites', 'bufferwrites', 'cachestore_memcached');
         $form->setDefault('bufferwrites', 0);
         $form->setType('bufferwrites', PARAM_BOOL);
+
+        $form->addElement('textarea', 'purgeservers', get_string('purgeservers', 'cachestore_memcached'),
+                array('cols' => 75, 'rows' => 5));
+        $form->addHelpButton('purgeservers', 'purgeservers', 'cachestore_memcached');
+        $form->setType('purgeservers', PARAM_RAW);
     }
 }
