@@ -31,11 +31,6 @@ abstract class core_backup_progress {
     const INDETERMINATE = -1;
 
     /**
-     * @var int The number of seconds that can pass without progress() calls.
-     */
-    const TIME_LIMIT_WITHOUT_PROGRESS = 120;
-
-    /**
      * @var int Time of last progress call.
      */
     protected $lastprogresstime;
@@ -159,10 +154,12 @@ abstract class core_backup_progress {
      * It must be INDETERMINATE if start_progress was called with $max set to
      * INDETERMINATE. Otherwise it must not be indeterminate.
      *
+     * @global stdClass $CFG
      * @param int $progress Progress so far
      * @throws coding_exception If progress value is invalid
      */
     public function progress($progress = self::INDETERMINATE) {
+        global $CFG;
         // Ignore too-frequent progress calls (more than once per second).
         $now = $this->get_time();
         if ($now === $this->lastprogresstime) {
@@ -202,7 +199,7 @@ abstract class core_backup_progress {
         // Update progress.
         $this->count++;
         $this->lastprogresstime = $now;
-        set_time_limit(self::TIME_LIMIT_WITHOUT_PROGRESS);
+        set_time_limit($CFG->noprogresstimeout);
         $this->update_progress();
     }
 

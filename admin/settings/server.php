@@ -196,6 +196,9 @@ $temp->add(new admin_setting_configselect('extramemorylimit', new lang_string('e
                                           new lang_string('configextramemorylimit', 'admin'), '512M',
                                           $memoryoptions));
 
+$temp->add(new admin_setting_configtext('noprogresstimeout', new lang_string('noprogresstimeout', 'admin'),
+        new lang_string('noprogresstimeout_desc', 'admin'), 120, PARAM_INT));
+
 $temp->add(new admin_setting_configtext('curlcache', new lang_string('curlcache', 'admin'),
                                         new lang_string('configcurlcache', 'admin'), 120, PARAM_INT));
 
