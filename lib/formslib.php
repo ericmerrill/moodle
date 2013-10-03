@@ -2889,6 +2889,7 @@ class MoodleQuickForm_Rule_Required extends HTML_QuickForm_Rule {
      */
     function validate($value, $options = null) {
         global $CFG;
+
         if (is_array($value) && array_key_exists('text', $value)) {
             $value = $value['text'];
         }
@@ -2925,7 +2926,12 @@ class MoodleQuickForm_Rule_Required extends HTML_QuickForm_Rule {
                 return array('', "{jsVar}.replace(/^\s+$/g, '') == ''");
             }
         } else {
-            return array('', "{jsVar} == ''");
+            if (!empty($format) && $format == FORMAT_HTML) {
+                return array('', "console.log(':'+ {jsVar}+ ':') || {jsVar}.replace(/^\s+$/g, '&nbsp;') == ''");
+            } else {
+                return array('', "{jsVar} == ''");
+            }
+            
         }
     }
 }
