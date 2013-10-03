@@ -33,7 +33,7 @@ abstract class core_backup_progress {
     /**
      * @var int The number of seconds that can pass without progress() calls.
      */
-    const TIME_LIMIT_WITHOUT_PROGRESS = 120;
+    const TIME_LIMIT_WITHOUT_PROGRESS = 600;
 
     /**
      * @var int Time of last progress call.
@@ -174,6 +174,13 @@ abstract class core_backup_progress {
         if ($max === false) {
             throw new coding_exception(
                     'progress() without start_progress');
+        }
+
+        if (($now - $this->lastprogresstime) > 120) {
+            $diff = $now - $this->lastprogresstime;
+            $message = 'Last progress() call was '.$diff.' seconds ago. Should be less under 120 seconds.'.
+                       ' Current progress description is: '.$this->get_current_description();
+            debugging($message, DEBUG_DEVELOPER);
         }
 
         // Check and apply new progress.
