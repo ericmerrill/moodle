@@ -52,5 +52,10 @@ class cachestore_memcache_addinstance_form extends cachestore_addinstance_form {
         $form->setType('prefix', PARAM_TEXT); // We set to text but we have a rule to limit to alphanumext.
         $form->setDefault('prefix', 'mdl_');
         $form->addRule('prefix', get_string('prefixinvalid', 'cachestore_memcache'), 'regex', '#^[a-zA-Z0-9\-_]+$#');
+
+        $form->addElement('textarea', 'purgeservers', get_string('purgeservers', 'cachestore_memcache'),
+                array('cols' => 75, 'rows' => 5));
+        $form->addHelpButton('purgeservers', 'purgeservers', 'cachestore_memcache');
+        $form->setType('purgeservers', PARAM_RAW);
     }
 }

@@ -32,6 +32,17 @@ $string['prefix_help'] = 'This prefix is used for all key names on the memcache 
 * If you only have one Moodle instance using this server, you can leave this value default.
 * Due to key length restrictions, a maximum of 5 characters is permitted.';
 $string['prefixinvalid'] = 'Invalid prefix. You can only use a-z A-Z 0-9-_.';
+$string['purgeservers'] = 'Additional servers to purge';
+$string['purgeservers_help'] = 'This is a list of servers that will be purged when this cache is purged, in addition to the servers listed above.
+Servers should be defined one per line and consist of a server address and optionally a port.
+If no port is provided then the default port (11211) is used.
+
+For example:
+<pre>
+server.url.com
+ipaddress:port
+servername:port
+</pre>';
 $string['servers'] = 'Servers';
 $string['servers_help'] = 'This sets the servers that should be utilised by this memcache adapter.
 Servers should be defined one per line and consist of a server address and optionally a port and weight.
