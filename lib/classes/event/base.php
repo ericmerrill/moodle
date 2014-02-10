@@ -101,8 +101,8 @@ abstract class base implements \IteratorAggregate {
 
     /** @var array list of event properties */
     private static $fields = array(
-        'eventname', 'component', 'action', 'target', 'objecttable', 'objectid', 'crud', 'level', 'contextid',
-        'contextlevel', 'contextinstanceid', 'userid', 'courseid', 'relateduserid', 'other',
+        'eventname', 'component', 'action', 'target', 'objecttable', 'objectid', 'crud', 'level', 'edulevel',
+        'contextid', 'contextlevel', 'contextinstanceid', 'userid', 'courseid', 'relateduserid', 'other',
         'timecreated');
 
     /** @var array simple record cache */
