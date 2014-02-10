@@ -101,8 +101,8 @@ abstract class base implements \IteratorAggregate {
 
     /** @var array list of event properties */
     private static $fields = array(
-        'eventname', 'component', 'action', 'target', 'objecttable', 'objectid', 'crud', 'level', 'contextid',
-        'contextlevel', 'contextinstanceid', 'userid', 'courseid', 'relateduserid', 'other',
+        'eventname', 'component', 'action', 'target', 'objecttable', 'objectid', 'crud', 'level', 'edulevel',
+        'contextid', 'contextlevel', 'contextinstanceid', 'userid', 'courseid', 'relateduserid', 'other',
         'timecreated');
 
     /** @var array simple record cache */
@@ -142,6 +142,11 @@ abstract class base implements \IteratorAggregate {
 
         // Set static event data specific for child class.
         $event->init();
+
+        // Allow the edulevel field from MDL-43661 to be used in 2.6.
+        if ((!isset($event->data['level'])) && isset($event->data['edulevel'])) {
+            $event->data['level'] = $event->data['edulevel'];
+        }
 
         // Set automatic data.
         $event->data['timecreated'] = time();

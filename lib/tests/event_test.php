@@ -636,6 +636,13 @@ class core_event_testcase extends advanced_testcase {
         $this->assertDebuggingCalled('Event property objectid must be set when objecttable is defined');
     }
 
+    public function test_edulevel_event() {
+        global $CFG;
+        $event = \core_tests\event\edulevel_event::create(array('context'=>\context_system::instance()));
+        $this->assertSame(\core\event\base::LEVEL_PARTICIPATING, $event->level);
+        $this->assertDebuggingNotCalled();
+    }
+
     public function test_problematic_events() {
         global $CFG;
         $event1 = \core_tests\event\problematic_event1::create(array('context'=>\context_system::instance()));
