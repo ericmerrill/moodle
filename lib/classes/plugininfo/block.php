@@ -87,7 +87,7 @@ class block extends base {
 
         $section = $this->get_settings_section_name();
 
-        if (!$hassiteconfig || (($blockinstance = block_instance($this->name)) === false)) {
+        if (($blockinstance = block_instance($this->name)) === false) {
             return;
         }
 

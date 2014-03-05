@@ -49,7 +49,7 @@ class repository extends base {
             return;
         }
 
-        if ($hassiteconfig && $this->is_enabled()) {
+        if ($this->is_enabled()) {
             // Completely no access to repository setting when it is not enabled.
             $sectionname = $this->get_settings_section_name();
             $settingsurl = new moodle_url('/admin/repository.php',

@@ -71,9 +71,6 @@ class filter extends base {
             return;
         }
 
-        if (!$hassiteconfig) {
-            return;
-        }
         if (file_exists($this->full_path('settings.php'))) {
             $fullpath = $this->full_path('settings.php');
         } else if (file_exists($this->full_path('filtersettings.php'))) {

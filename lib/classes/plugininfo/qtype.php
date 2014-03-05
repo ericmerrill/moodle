@@ -112,9 +112,7 @@ class qtype extends base {
         $section = $this->get_settings_section_name();
 
         $settings = null;
-        $systemcontext = \context_system::instance();
-        if (($hassiteconfig || has_capability('moodle/question:config', $systemcontext)) &&
-            file_exists($this->full_path('settings.php'))) {
+        if (file_exists($this->full_path('settings.php'))) {
             $settings = new admin_settingpage($section, $this->displayname,
                 'moodle/question:config', $this->is_enabled() === false);
             include($this->full_path('settings.php')); // This may also set $settings to null.

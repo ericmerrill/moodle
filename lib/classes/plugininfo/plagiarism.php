@@ -41,7 +41,7 @@ class plagiarism extends base {
             return;
         }
 
-        if (!$hassiteconfig or !file_exists($this->full_path('settings.php'))) {
+        if (!file_exists($this->full_path('settings.php'))) {
             return;
         }
 

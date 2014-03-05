@@ -53,9 +53,6 @@ class message extends base {
             return;
         }
 
-        if (!$hassiteconfig) {
-            return;
-        }
         $section = $this->get_settings_section_name();
 
         $settings = null;
