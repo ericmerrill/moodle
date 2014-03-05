@@ -41,7 +41,7 @@ abstract class base {
     public $typerootdir;
     /** @var string the plugin name, eg. assignment, ldap */
     public $name;
-    /** @var string the localized plugin name */
+    /** @var string|lang_string the localized plugin name */
     public $displayname;
     /** @var string the plugin source, one of core_plugin_manager::PLUGIN_SOURCE_xxx constants */
     public $source;
@@ -163,7 +163,7 @@ abstract class base {
         if (!get_string_manager()->string_exists('pluginname', $this->component)) {
             $this->displayname = '[pluginname,' . $this->component . ']';
         } else {
-            $this->displayname = get_string('pluginname', $this->component);
+            $this->displayname = new \lang_string('pluginname', $this->component);
         }
     }
 

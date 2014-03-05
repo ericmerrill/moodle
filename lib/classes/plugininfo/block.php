@@ -61,7 +61,7 @@ class block extends base {
     public function init_display_name() {
 
         if (get_string_manager()->string_exists('pluginname', 'block_' . $this->name)) {
-            $this->displayname = get_string('pluginname', 'block_' . $this->name);
+            $this->displayname = new \lang_string('pluginname', 'block_' . $this->name);
 
         } else if (($block = block_instance($this->name)) !== false) {
             $this->displayname = $block->get_title();

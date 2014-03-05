@@ -36,7 +36,7 @@ class filter extends base {
         if (!get_string_manager()->string_exists('filtername', $this->component)) {
             $this->displayname = '[filtername,' . $this->component . ']';
         } else {
-            $this->displayname = get_string('filtername', $this->component);
+            $this->displayname = new \lang_string('filtername', $this->component);
         }
     }
 

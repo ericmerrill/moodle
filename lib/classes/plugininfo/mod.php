@@ -61,7 +61,7 @@ class mod extends base {
         if (get_string_manager()->string_exists('pluginname', $this->component)) {
             $this->displayname = get_string('pluginname', $this->component);
         } else {
-            $this->displayname = get_string('modulename', $this->component);
+            $this->displayname = new \lang_string('modulename', $this->component);
         }
     }
 
