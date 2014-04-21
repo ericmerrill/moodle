@@ -296,6 +296,7 @@ $string['gradepublishing_help'] = 'Enable publishing in exports and imports: Exp
 $string['gradereport'] = 'Grade report';
 $string['graderreport'] = 'Grader report';
 $string['grades'] = 'Grades';
+$string['gradesaveconflict'] = 'The grade for user {$a->name}, item {$a->item} was changed elsewhere while you were editing grades. Your value of {$a->newgrade} was not saved.';
 $string['gradesforuser'] = 'Grades for {$a->user}';
 $string['gradesonly'] = 'Grades only';
 $string['gradessettings'] = 'Grade settings';

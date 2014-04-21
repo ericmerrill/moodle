@@ -203,6 +203,17 @@ class grade_report_grader extends grade_report {
                     // Was change requested?
                     $oldvalue = $this->grades[$userid][$itemid];
                     if ($datatype === 'grade') {
+
+                        if($data->displaytime < $oldvalue->timemodified) {
+                            $params = new stdClass();
+                            $params->name = 'Name';
+                            $params->item = 'Item';
+                            $params->newgrade = 'G';
+
+                            $warnings[] = get_string('gradesaveconflict', 'grades', $params);
+                            continue;
+                        }
+
                         // If there was no grade and there still isn't
                         if (is_null($oldvalue->finalgrade) && $postedvalue == -1) {
                             // -1 means no grade
@@ -223,7 +234,7 @@ class grade_report_grader extends grade_report {
                                 continue;
                             }
                         }
-
+print_r($itemid);
                         $changedgrades = true;
 
                     } else if ($datatype === 'feedback') {
