@@ -223,6 +223,9 @@ class block_edit_form extends moodleform {
         $mform->addElement('header', 'onthispage', get_string('onthispage', 'block'));
 
         $mform->addElement('selectyesno', 'bui_visible', get_string('visible', 'block'));
+        if (!$this->block->instance_can_be_hidden()) {
+            $mform->hardFreeze('bui_visible');
+        }
 
         $blockregion = $this->block->instance->region;
         if (!array_key_exists($blockregion, $regionoptions)) {
@@ -263,6 +266,11 @@ class block_edit_form extends moodleform {
         // Munge ->subpagepattern becuase HTML selects don't play nicely with NULLs.
         if (empty($defaults->bui_subpagepattern)) {
             $defaults->bui_subpagepattern = '%@NULL@%';
+        }
+
+        // If a block doesn't allow hiding, override the value to yes, just in case.
+        if (!$this->block->instance_can_be_hidden()) {
+            $defaults->bui_visible = 1;
         }
 
         $systemcontext = context_system::instance();
