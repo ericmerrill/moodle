@@ -1084,7 +1084,7 @@ class block_manager {
 
         }
 
-        if ($this->page->user_can_edit_blocks() || $block->user_can_edit()) {
+        if ($this->page->user_can_edit_blocks() && $block->user_can_edit()) {
             // Edit config icon - always show - needed for positioning UI.
             $str = new lang_string('configureblock', 'block', $blocktitle);
             $controls[] = new action_menu_link_secondary(
@@ -1335,8 +1335,8 @@ class block_manager {
 
         $block = $this->find_instance($blockid);
 
-        if (!$block->user_can_edit() && !$this->page->user_can_edit_blocks()) {
-            throw new moodle_exception('nopermissions', '', $this->page->url->out(), get_string('editblock'));
+        if (!$block->user_can_edit() || !$this->page->user_can_edit_blocks()) {
+            throw new moodle_exception('nopermissions', '', $this->page->url->out(), get_string('editblock', 'block'));
         }
 
         $editpage = new moodle_page();
@@ -1536,7 +1536,7 @@ class block_manager {
         $block = $this->find_instance($blockid);
 
         if (!$this->page->user_can_edit_blocks()) {
-            throw new moodle_exception('nopermissions', '', $this->page->url->out(), get_string('editblock'));
+            throw new moodle_exception('nopermissions', '', $this->page->url->out(), get_string('editblock', 'block'));
         }
 
         $newregion = optional_param('bui_newregion', '', PARAM_ALPHANUMEXT);
