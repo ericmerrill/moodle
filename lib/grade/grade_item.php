@@ -278,6 +278,10 @@ class grade_item extends grade_object {
         }
 
         if ($this->qualifies_for_regrading()) {
+            // If this a manual item, check if we need to update grade_grades min and max rawgrades.
+            if (($this->is_manual_item()) && $this->min_max_changed()) {
+                $this->update_all_grade_grade_min_max();
+            }
             $this->force_regrading();
         }
 
@@ -327,6 +331,25 @@ class grade_item extends grade_object {
         return ($calculationdiff || $categorydiff || $gradetypediff || $grademaxdiff || $grademindiff || $scaleiddiff
              || $outcomeiddiff || $multfactordiff || $plusfactordiff || $needsupdatediff
              || $lockeddiff || $acoefdiff || $acoefdiff2 || $weightoverride || $locktimediff);
+    }
+
+    /**
+     * Compares the grademax and grademin values held by this object with those of the matching record in DB and returns
+     * whether or not these differences are sufficient to justify an update of all associated grade_grades.
+     *
+     * @return bool True if grademin and/or grademax have changed
+     */
+    public function min_max_changed() {
+        if (empty($this->id)) {
+            return false;
+        }
+
+        $db_item = new grade_item(array('id' => $this->id));
+
+        $grademindiff    = grade_floats_different($db_item->grademin, $this->grademin);
+        $grademaxdiff    = grade_floats_different($db_item->grademax, $this->grademax);
+
+        return ($grademindiff || $grademaxdiff);
     }
 
     /**
@@ -803,6 +826,46 @@ class grade_item extends grade_object {
             debugging("Unknown grade type");
             return null;
         }
+    }
+
+    /**
+     * Update the rawgrademax and rawgrademin for all grade_grades records for this item.
+     *
+     * @return bool True on success
+     */
+    public function update_all_grade_grade_min_max() {
+        global $DB;
+
+        if (empty($this->id)) {
+            return false;
+        }
+
+        // Get a recordset of all the grade_grades that exist for this item.
+        $rs = $DB->get_recordset('grade_grades', array('itemid' => $this->id));
+        foreach($rs as $grade_record) {
+            // For each record, create an object to work on.
+            $grade = new grade_grade($grade_record, false);
+            // Set this object in the item so it doesn't re-fetch it.
+            $grade->grade_item =& $this;
+
+            // Don't update grades that are locked.
+            $locktime = $grade->get_locktime();
+            if ($grade->is_locked() or ($locktime and $locktime < time())) {
+                // Do not update grades that are or should be locked.
+                continue;
+            }
+
+            // Set the values and store it in the DB.
+            $grade->rawgrademax = $this->grademax;
+            $grade->rawgrademin = $this->grademin;
+            $grade->update();
+        }
+        $rs->close();
+
+        // Mark this item for regrading.
+        $this->force_regrading();
+
+        return true;
     }
 
     /**
