@@ -530,3 +530,91 @@ function upgrade_mimetypes($filetypes) {
         );
     }
 }
+
+/**
+ * Ensures grade_grade rawgrademax and rawgrademin match the grade_item grademax and grademin.
+ * Due to computation changes, a mismatch causes unepected grade behaviour.
+ */
+function upgrade_grade_grade_rawgrade() {
+    global $DB, $USER, $CFG;
+
+    require_once($CFG->libdir.'/grade/constants.php');
+
+    // We need a count to properly use a progress bar.
+    $sql = "SELECT COUNT(DISTINCT gi.id)
+              FROM {grade_items} gi
+              JOIN {grade_grades} gg
+                ON gg.itemid = gi.id
+             WHERE (gi.itemtype = 'manual'
+                OR gi.itemtype = 'mod')
+               AND (gg.rawgrademax != gi.grademax
+                OR gg.rawgrademin != gi.grademin)";
+
+    $gradeitemcount = $DB->count_records_sql($sql);
+    if (!$gradeitemcount) {
+        return;
+    }
+
+    $pbar = new progress_bar('graderawgradefix', 500, true);
+
+    // Select grade_items with mismatch grades.
+    $sql = "SELECT DISTINCT gi.id, gi.grademax, gi.grademin, gi.courseid
+              FROM {grade_items} gi
+              JOIN {grade_grades} gg
+                ON gg.itemid = gi.id
+             WHERE (gi.itemtype = 'manual'
+                OR gi.itemtype = 'mod')
+               AND (gg.rawgrademax != gi.grademax
+                OR gg.rawgrademin != gi.grademin)
+          ORDER BY courseid DESC";
+    $gradeitems = $DB->get_recordset_sql($sql);
+
+    $i = 0;
+    $currentcourse = -1;
+    foreach ($gradeitems as $gradeitem) {
+        // Select all the grade_grades with bad max/min for fixing.
+        $sql = "SELECT *
+                  FROM {grade_grades}
+                 WHERE itemid = :itemid
+                   AND (rawgrademax != :grademax
+                    OR rawgrademin != :grademin)";
+        $params = array('itemid' => $gradeitem->id,
+                        'grademax' => $gradeitem->grademax,
+                        'grademin' => $gradeitem->grademin);
+        $gradegrades = $DB->get_recordset_sql($sql, $params);
+
+        foreach ($gradegrades as $gradegrade) {
+            // We must do this work directly.
+            // We cannot rely on core grade lib because that will be written for a newer DB version than the one we currently have.
+            $update = new stdClass();
+            $update->id = $gradegrade->id;
+            $update->rawgrademax = $gradeitem->grademax;
+            $update->rawgrademin = $gradeitem->grademin;
+            $DB->update_record("grade_grades", $update);
+
+            // Insert a record into the grade history table if needed.
+            if (empty($CFG->disablegradehistory)) {
+                unset($gradegrade->timecreated);
+                $gradegrade->action       = GRADE_HISTORY_UPDATE;
+                $gradegrade->oldid        = $gradegrade->id;
+                unset($gradegrade->id);
+                $gradegrade->source       = null;
+                $gradegrade->timemodified = time();
+                $gradegrade->loggeduser   = $USER->id;
+                $DB->insert_record('grade_grades_history', $gradegrade);
+            }
+
+        }
+        $gradegrades->close();
+
+        // Mark all grade items in this course for updating, to make sure everything is recalculated.
+        if ($currentcourse != $gradeitem->courseid) {
+            $DB->set_field('grade_items', 'needsupdate', 1, array('courseid' => $gradeitem->courseid));
+            $currentcourse = $gradeitem->courseid;
+        }
+
+        $i++;
+        $pbar->update($i, $gradeitemcount, "Updated grade records to match grade items - $i/$gradeitemcount.");
+    }
+    $gradeitems->close();
+}

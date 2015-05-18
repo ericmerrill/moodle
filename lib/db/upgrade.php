@@ -4378,5 +4378,11 @@ function xmldb_main_upgrade($oldversion) {
     // Moodle v2.9.0 release upgrade line.
     // Put any upgrade step following this.
 
+    if ($oldversion < 2015051100.03) {
+        upgrade_grade_grade_rawgrade();
+
+        upgrade_main_savepoint(true, 2015051100.03);
+    }
+
     return true;
 }
