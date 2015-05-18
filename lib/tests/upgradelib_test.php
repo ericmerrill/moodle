@@ -353,4 +353,80 @@ class core_upgradelib_testcase extends advanced_testcase {
                     (object)array('userfield' => 'email', 'shortname' => null, 'operator' => 'isempty'),
                 )));
     }
+
+    /**
+     * Test the grade_grade min/max grade fixing upgrade function.
+     */
+    public function test_upgrade_grade_grade_rawgrade() {
+        global $CFG, $DB;
+        $this->resetAfterTest();
+
+        // This function is in the other upgradelib.
+        require_once($CFG->libdir . '/db/upgradelib.php');
+
+        // Create a course and get the category.
+        $course = $this->getDataGenerator()->create_course();
+        $coursecategory = grade_category::fetch_course_category($course->id);
+
+        // Setup some users to use.
+        $users = array();
+        $users[0] = $this->getDataGenerator()->create_user();
+        $users[1] = $this->getDataGenerator()->create_user();
+        $users[2] = $this->getDataGenerator()->create_user();
+        $users[3] = $this->getDataGenerator()->create_user();
+
+        // Setup our grade item.
+        $gradeitem = new grade_item();
+        $gradeitem->courseid = $course->id;
+        $gradeitem->categoryid = $coursecategory->id;
+        $gradeitem->itemname = 'unittestgradeitem1';
+        $gradeitem->itemtype = 'manual';
+        $gradeitem->iteminfo = 'Grade item used for unit testing';
+        $gradeitem->grademax = 101;
+        $gradeitem->grademin = 1;
+        $gradeitem->insert();
+
+        // Save some grades with non-matching grademin and grademax.
+        $gradegrade = new grade_grade();
+        $gradegrade->itemid = $gradeitem->id;
+        $gradegrade->userid = $users[0]->id;
+        $gradegrade->rawgrade = 90;
+        $gradegrade->rawgrademax = 101;
+        $gradegrade->rawgrademin = 1;
+        $gradegrade->insert();
+
+        $gradegrade = new grade_grade();
+        $gradegrade->itemid = $gradeitem->id;
+        $gradegrade->userid = $users[1]->id;
+        $gradegrade->rawgrade = 90;
+        $gradegrade->rawgrademax = 200;
+        $gradegrade->rawgrademin = 0;
+        $gradegrade->insert();
+
+        $gradegrade = new grade_grade();
+        $gradegrade->itemid = $gradeitem->id;
+        $gradegrade->userid = $users[2]->id;
+        $gradegrade->rawgrade = 90;
+        $gradegrade->rawgrademax = 100;
+        $gradegrade->rawgrademin = 20;
+        $gradegrade->insert();
+
+        $gradegrade = new grade_grade();
+        $gradegrade->itemid = $gradeitem->id;
+        $gradegrade->userid = $users[3]->id;
+        $gradegrade->rawgrade = 90;
+        $gradegrade->rawgrademax = 200;
+        $gradegrade->rawgrademin = 30;
+        $gradegrade->insert();
+
+        // Run the upgrade function.
+        upgrade_grade_grade_rawgrade();
+
+        // Now fetch the grades and see if they match the grade item.
+        $grades = grade_grade::fetch_users_grades($gradeitem, array($users[0]->id, $users[1]->id, $users[2]->id, $users[3]->id));
+        foreach ($grades as $gradegrade) {
+            $this->assertEquals($gradeitem->grademax, $gradegrade->rawgrademax, 'Max grade mismatch', 0.0001);
+            $this->assertEquals($gradeitem->grademin, $gradegrade->rawgrademin, 'Min grade mismatch', 0.0001);
+        }
+    }
 }
