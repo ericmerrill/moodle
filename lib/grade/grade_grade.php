@@ -396,6 +396,52 @@ class grade_grade extends grade_object {
         return $max;
     }
 
+    public function get_grade_percent() {
+        list($min, $max) = $this->get_grade_min_and_max();
+
+        if ($min == $max) {
+            return '';
+        }
+        $value = $this->bounded_grade();
+        $percentage = (($value-$min)*100)/($max-$min);
+        return format_float($percentage, 3, false).' %';
+    }
+
+    public function bounded_grade() {
+        global $CFG;
+        list($grademin, $grademax) = $this->get_grade_min_and_max();
+
+        $gradevalue = $this->finalgrade;
+
+        if (is_null($gradevalue)) {
+            return null;
+        }
+
+        if ($this->grade_item->gradetype == GRADE_TYPE_SCALE) {
+            // no >100% grades hack for scale grades!
+            // 1.5 is rounded to 2 ;-)
+            return (int)bounded_number($grademin, round($gradevalue+0.00001), $grademax);
+        }
+
+        //$grademax = $this->grademax;
+
+        // NOTE: if you change this value you must manually reset the needsupdate flag in all grade items
+        $maxcoef = isset($CFG->gradeoverhundredprocentmax) ? $CFG->gradeoverhundredprocentmax : 10; // 1000% max by default
+
+        if (!empty($CFG->unlimitedgrades)) {
+            // NOTE: if you change this value you must manually reset the needsupdate flag in all grade items
+            $grademax = $grademax * $maxcoef;
+        } else if ($this->grade_item->is_category_item() or $this->grade_item->is_course_item()) {
+            $category = $this->grade_item->load_item_category();
+            if ($category->aggregation >= 100) {
+                // grade >100% hack
+                $grademax = $grademax * $maxcoef;
+            }
+        }
+
+        return (float)bounded_number($grademin, $gradevalue, $grademax);
+    }
+
     /**
      * Makes sure value is a valid grade value for this grade.
      *
