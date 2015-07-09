@@ -154,7 +154,11 @@ if (has_capability('moodle/grade:viewall', $context)) { //Teachers will see all 
         }
     }
 } else { //Students will see just their own report
-
+$item = grade_item::fetch_course_item($courseid);
+$grade = $item->get_grade($userid);
+echo $grade->finalgrade;
+$grade->compute_hidden_grades(GRADE_REPORT_SHOW_TOTAL_IF_CONTAINS_HIDDEN);
+echo $grade->finalgrade;echo ':'.$grade->get_grade_percent();
     // Create a report instance
     $report = new grade_report_user($courseid, $gpr, $context, $userid);
 
