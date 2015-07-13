@@ -184,9 +184,11 @@ class grade_grade extends grade_object {
 //     protected $displaymin = null;
 //     protected $displaymax = null;
 
-    public $hidevalue = false;
+    protected $reportaggexclude = false;
 
-    public $containshidden = false;
+    //public $hidevalue = false;
+
+    protected $containshidden = false;
 
     /**
      * Returns array of grades for given grade_item+users
@@ -460,6 +462,10 @@ class grade_grade extends grade_object {
 
     // todo grade_category->aggregateonlygraded
     // todo excluded()
+    // todo hidden until
+    // todo conditional hidden?
+    // todo calculated
+
     public function compute_hidden_grades($visibility, &$grades = array(), &$items = array()) {
         $grades[$this->itemid] = $this;
 
@@ -484,14 +490,16 @@ class grade_grade extends grade_object {
 
         // Set this item to have no value if it shouldn't be used in future computations.
         if ($this->is_hidden() && $visibility == GRADE_REPORT_SHOW_TOTAL_IF_CONTAINS_HIDDEN) {
-            $this->finalgrade = null;
-            $this->rawgrademin = null;
-            $this->rawgrademax = null;
+            //$this->finalgrade = null;
+            //$this->rawgrademin = null;
+            //$this->rawgrademax = null;
+            $this->reportaggexclude = true;
             $this->aggregationweight = 0;
             $this->aggregationstatus = 'dropped';
         }
 
         if ($this->is_excluded()) {
+            $this->reportaggexclude = true;
             $this->aggregationweight = null;
             $this->aggregationstatus = 'excluded';
         }
@@ -526,7 +534,8 @@ class grade_grade extends grade_object {
             if ($gradegrade->is_hidden() || $gradegrade->containshidden) {
                 $this->containshidden = true;
             }
-            if (!is_null($gradegrade->finalgrade) && !$gradegrade->is_excluded()) {
+            if (!$gradegrade->reportaggexclude) {
+            //if (!is_null($gradegrade->finalgrade) && !$gradegrade->is_excluded()) {
                 //$values[$item->id] = $gradegrade->finalgrade;
                 $values[$item->id] = grade_grade::standardise_score($gradegrade->finalgrade, $gradegrade->get_grade_min(), $gradegrade->get_grade_max(), 0, 1);
                 $overmax[$item->id] = $gradegrade->get_grade_max();
