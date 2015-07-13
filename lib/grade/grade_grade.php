@@ -397,6 +397,218 @@ class grade_grade extends grade_object {
     }
 
     /**
+     * Makes sure value is a valid grade value for this grade.
+     *
+     * @param float $gradevalue
+     * @return mixed float or int fixed grade value
+     */
+    public function bounded_grade($gradevalue) {
+        global $CFG;
+
+        if (is_null($gradevalue)) {
+            return null;
+        }
+
+        list($grademin, $grademax) = $this->get_grade_min_and_max();
+
+        if ($this->grade_item->gradetype == GRADE_TYPE_SCALE) {
+            // We can't allow out of range scales. We also have to round to integers.
+            return (int)bounded_number($grademin, round($gradevalue + 0.00001), $grademax);
+        }
+
+        $maxcoef = isset($CFG->gradeoverhundredprocentmax) ? $CFG->gradeoverhundredprocentmax : 10; // 1000% max by default.
+
+        if (!empty($CFG->unlimitedgrades)) {
+            $grademax = $grademax * $maxcoef;
+        } else if ($this->grade_item->is_category_item() or $this->grade_item->is_course_item()) {
+            $category = $this->grade_item->load_item_category();
+            if ($category->aggregation >= 100) {
+                // Grade >100%.
+                $grademax = $grademax * $maxcoef;
+            }
+        }
+
+        return (float)bounded_number($grademin, $gradevalue, $grademax);
+    }
+
+    /**
+     * Get the percent (in 100 scale) for the current grade.
+     *
+     * @since  Moodle 2.8.8, 2.9.2
+     * @return mixed float for grade, null for null grade, false for invalid.
+     */
+    public function get_percentage() {
+        if (is_null($this->finalgrade)) {
+            return null;
+        }
+
+        list($min, $max) = $this->get_grade_min_and_max();
+        if ($min == $max) {
+            return false;
+        }
+        // Make sure the grade it properly bounded.
+        $value = $this->bounded_grade($this->finalgrade);
+
+        return (($value-$min) * 100) / ($max - $min);
+    }
+
+    /**
+     * Get the formatted string grade for this object.
+     *
+     * @since  Moodle 2.8.8, 2.9.2
+     * @param bool $localized use localised decimal separator
+     * @param int $displaytype type of display. For example GRADE_DISPLAY_TYPE_REAL
+     *                                                      GRADE_DISPLAY_TYPE_PERCENTAGE
+     *                                                      GRADE_DISPLAY_TYPE_LETTER
+     * @param int $decimals The number of decimal places when displaying float values
+     * @return string
+     */
+    public function get_formatted_grade($localized=true, $displaytype=null, $decimals=null) {
+        $gradeitem = $this->load_grade_item();
+
+        if ($gradeitem->gradetype == GRADE_TYPE_NONE or $gradeitem->gradetype == GRADE_TYPE_TEXT) {
+            return '';
+        }
+
+        if ($gradeitem->gradetype != GRADE_TYPE_VALUE and $gradeitem->gradetype != GRADE_TYPE_SCALE) {
+            // We don't know what to do with this type.
+            return '';
+        }
+
+        if (is_null($displaytype)) {
+            // Load default display type.
+            $displaytype = $gradeitem->get_displaytype();
+        }
+
+        if (is_null($decimals)) {
+            // Load default decimals.
+            $decimals = $gradeitem->get_decimals();
+        }
+
+        // For the various display types, build and return the string.
+        switch ($displaytype) {
+            case GRADE_DISPLAY_TYPE_REAL:
+                return $this->get_formatted_real($decimals, $localized);
+
+            case GRADE_DISPLAY_TYPE_PERCENTAGE:
+                return $this->get_formatted_percentage($decimals, $localized);
+
+            case GRADE_DISPLAY_TYPE_LETTER:
+                return $this->get_formatted_letter();
+
+            case GRADE_DISPLAY_TYPE_REAL_PERCENTAGE:
+                return $this->get_formatted_real($decimals, $localized) . ' (' .
+                        $this->get_formatted_percentage($decimals, $localized) . ')';
+
+            case GRADE_DISPLAY_TYPE_REAL_LETTER:
+                return $this->get_formatted_real($decimals, $localized) . ' (' .
+                        $this->get_formatted_letter() . ')';
+
+            case GRADE_DISPLAY_TYPE_PERCENTAGE_REAL:
+                return $this->get_formatted_percentage($decimals, $localized) . ' (' .
+                        $this->get_formatted_real($decimals, $localized) . ')';
+
+            case GRADE_DISPLAY_TYPE_LETTER_REAL:
+                return $this->get_formatted_letter() . ' (' .
+                        $this->get_formatted_real($decimals, $localized) . ')';
+
+            case GRADE_DISPLAY_TYPE_LETTER_PERCENTAGE:
+                return $this->get_formatted_letter() . ' (' .
+                        $this->get_formatted_percentage($decimals, $localized) . ')';
+
+            case GRADE_DISPLAY_TYPE_PERCENTAGE_LETTER:
+                return $this->get_formatted_percentage($decimals, $localized) . ' (' .
+                        $this->get_formatted_letter() . ')';
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * Get the formatted percentage grade for this object.
+     *
+     * @since  Moodle 2.8.8, 2.9.2
+     * @param int $decimals The number of decimal places
+     * @param bool $localized use localised decimal separator
+     * @return string
+     */
+    public function get_formatted_percentage($decimals, $localized = true) {
+        $percentage = $this->get_percentage();
+
+        if (is_null($percentage)) {
+            return '-';
+        }
+
+        if ($percentage === false) {
+            return '';
+        }
+
+        return format_float($percentage, $decimals, $localized).' %';
+    }
+
+    /**
+     * Get the formatted real grade for this object.
+     *
+     * @since  Moodle 2.8.8, 2.9.2
+     * @param int $decimals The number of decimal places
+     * @param bool $localized use localised decimal separator
+     * @return string
+     */
+    public function get_formatted_real($decimals, $localized = true) {
+        $this->load_grade_item();
+
+        $value = $this->finalgrade;
+
+        if (is_null($value)) {
+            return '-';
+        }
+
+        // Handle scales differently.
+        if ($this->grade_item->gradetype == GRADE_TYPE_SCALE) {
+            if (!$scale = $this->grade_item->load_scale()) {
+                return get_string('error');
+            }
+
+            $value = $this->grade_item->bounded_grade($value);
+            return format_string($scale->scale_items[$value - 1]);
+
+        } else {
+            return format_float($value, $decimals, $localized);
+        }
+    }
+
+    /**
+     * Get the grade letter for this object.
+     *
+     * @since  Moodle 2.8.8, 2.9.2
+     * @return string
+     */
+    public function get_formatted_letter() {
+        $this->load_grade_item();
+
+        $context = context_course::instance($this->grade_item->courseid, IGNORE_MISSING);
+        if (!$letters = grade_get_letters($context)) {
+            // We seem to be missing letters in this context.
+            return '';
+        }
+
+        if (is_null($this->finalgrade)) {
+            return '-';
+        }
+
+        $percentage = $this->get_percentage();
+        $value = bounded_number(0, $percentage, 100); // Just in case.
+        foreach ($letters as $boundary => $letter) {
+            if ($percentage >= $boundary) {
+                return format_string($letter);
+            }
+        }
+
+        // We didn't find a match.
+        return '-';
+    }
+
+    /**
      * Returns timestamp when last graded, null if no grade present
      *
      * @return int

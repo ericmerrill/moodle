@@ -432,13 +432,17 @@ function grade_get_grades($courseid, $itemtype, $itemmodule, $iteminstance, $use
                             $grade->str_long_grade = $grade->str_grade;
 
                         } else {
-                            $grade->str_grade = grade_format_gradevalue($grade->grade, $grade_item);
+                            $grade->str_grade = $grade_grades[$userid]->get_formatted_grade();
                             if ($grade_item->gradetype == GRADE_TYPE_SCALE or $grade_item->get_displaytype() != GRADE_DISPLAY_TYPE_REAL) {
                                 $grade->str_long_grade = $grade->str_grade;
                             } else {
+                                // We are going to hijack the grade item (temporarily) to get the "maximum" formatted grade.
+                                $tmpfinal = $grade_grades[$userid]->finalgrade;
+                                $grade_grades[$userid]->finalgrade = $grade_grades[$userid]->get_grade_max();
                                 $a = new stdClass();
                                 $a->grade = $grade->str_grade;
-                                $a->max   = grade_format_gradevalue($grade_item->grademax, $grade_item);
+                                $a->max   = $grade_grades[$userid]->get_formatted_grade();
+                                $grade_grades[$userid]->finalgrade = $tmpfinal;
                                 $grade->str_long_grade = get_string('gradelong', 'grades', $a);
                             }
                         }

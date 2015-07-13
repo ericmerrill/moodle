@@ -16,6 +16,16 @@ information provided here is intended especially for developers.
   ** core_group_external::get_course_groupings
   ** core_group_external::get_course_user_groups
 
+=== 3.0/2.9.2/2.8.8 ===
+
+* New method grade_grade::get_percentage() provides the grade in percent form (scaled to 100), respecting various settings
+* New method grade_grade::bounded_grade() is intended to superceed grade_item::bounded_grade(), as grade_items no longer have enough information to make that computation.
+* New display methods on grade_grade to superceed grade_format_gradevalue, et al., to more consistently handle grade display:
+  ** grade_grade::get_formatted_grade
+  ** grade_grade::get_formatted_percentage
+  ** grade_grade::get_formatted_real
+  ** grade_grade::get_formatted_letter
+
 === 2.9.1 ===
 
 * New methods grade_grade::get_grade_max() and get_grade_min() must be used rather than directly the public properties rawgrademax and rawgrademin.

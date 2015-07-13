@@ -429,4 +429,275 @@ class core_grade_grade_testcase extends grade_base_testcase {
 
         $CFG->grade_minmaxtouse = $initialminmaxtouse;
     }
+
+    public function test_grade_grade_get_percentage() {
+        global $CFG;
+        $initialminmaxtouse = $CFG->grade_minmaxtouse;
+
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_user();
+        $assignrecord = $this->getDataGenerator()->create_module('assign', array('course' => $course, 'grade' => 100));
+        $cm = get_coursemodule_from_instance('assign', $assignrecord->id);
+        $assigncontext = context_module::instance($cm->id);
+        $assign = new assign($assigncontext, $cm, $course);
+
+        // Fetch the assignment item.
+        $giparams = array('itemtype' => 'mod', 'itemmodule' => 'assign', 'iteminstance' => $assignrecord->id,
+                'courseid' => $course->id, 'itemnumber' => 0);
+        $gi = grade_item::fetch($giparams);
+        $this->assertEquals(0, $gi->grademin);
+        $this->assertEquals(100, $gi->grademax);
+
+        // Give a grade to the student.
+        $usergrade = $assign->get_user_grade($user->id, true);
+        $usergrade->grade = 10;
+        $assign->update_grade($usergrade);
+
+        // Check the grade stored in gradebook.
+        $gg = grade_grade::fetch(array('userid' => $user->id, 'itemid' => $gi->id));
+        $this->assertEquals(10, $gg->rawgrade);
+        $this->assertEquals(0, $gg->get_grade_min());
+        $this->assertEquals(100, $gg->get_grade_max());
+
+        // Change the min/max grade of the item.
+        $gi->grademax = 50;
+        $gi->grademin = 2;
+        $gi->update();
+        // Make sure the grade_grade has the reference to the current grade item.
+        $gg->grade_item =& $gi;
+
+        $CFG->grade_minmaxtouse = GRADE_MIN_MAX_FROM_GRADE_ITEM;
+        grade_set_setting($course->id, 'minmaxtouse', null); // Ensure no course setting.
+        // We expect it to be ((grade-min)/(max-min))*100.
+        $this->assertEquals(16.66666, $gg->get_percentage(), false, 0.0001);
+
+        $CFG->grade_minmaxtouse = GRADE_MIN_MAX_FROM_GRADE_GRADE;
+        grade_set_setting($course->id, 'minmaxtouse', null); // Makes sure setting cache is cleared.
+        $this->assertEquals(10, $gg->get_percentage(), false, 0.0001);
+
+        $CFG->grade_minmaxtouse = $initialminmaxtouse;
+    }
+
+    public function test_grade_grade_get_formatted_percentage() {
+        global $CFG;
+        $initialminmaxtouse = $CFG->grade_minmaxtouse;
+
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_user();
+        $assignrecord = $this->getDataGenerator()->create_module('assign', array('course' => $course, 'grade' => 100));
+        $cm = get_coursemodule_from_instance('assign', $assignrecord->id);
+        $assigncontext = context_module::instance($cm->id);
+        $assign = new assign($assigncontext, $cm, $course);
+
+        // Fetch the assignment item.
+        $giparams = array('itemtype' => 'mod', 'itemmodule' => 'assign', 'iteminstance' => $assignrecord->id,
+                'courseid' => $course->id, 'itemnumber' => 0);
+        $gi = grade_item::fetch($giparams);
+        $this->assertEquals(0, $gi->grademin);
+        $this->assertEquals(100, $gi->grademax);
+
+        // Give a grade to the student.
+        $usergrade = $assign->get_user_grade($user->id, true);
+        $usergrade->grade = 10;
+        $assign->update_grade($usergrade);
+
+        // Check the grade stored in gradebook.
+        $gg = grade_grade::fetch(array('userid' => $user->id, 'itemid' => $gi->id));
+        $this->assertEquals(10, $gg->rawgrade);
+        $this->assertEquals(0, $gg->get_grade_min());
+        $this->assertEquals(100, $gg->get_grade_max());
+
+        // Change the min/max grade of the item.
+        $gi->grademax = 50;
+        $gi->grademin = 2;
+        $gi->update();
+        // Make sure the grade_grade has the reference to the current grade item.
+        $gg->grade_item =& $gi;
+
+        $CFG->grade_minmaxtouse = GRADE_MIN_MAX_FROM_GRADE_ITEM;
+        grade_set_setting($course->id, 'minmaxtouse', null); // Ensure no course setting.
+        // We expect it to be ((grade-min)/(max-min))*100.
+        $result = $gg->get_formatted_percentage(3, false);
+        $this->assertEquals("16.667 %", $result);
+
+        $CFG->grade_minmaxtouse = GRADE_MIN_MAX_FROM_GRADE_GRADE;
+        grade_set_setting($course->id, 'minmaxtouse', null); // Makes sure setting cache is cleared.
+        $result = $gg->get_formatted_percentage(3, false);
+        $this->assertEquals("10.000 %", $result);
+
+        $CFG->grade_minmaxtouse = $initialminmaxtouse;
+    }
+
+    public function test_grade_grade_get_formatted_real() {
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_user();
+        $assignrecord = $this->getDataGenerator()->create_module('assign', array('course' => $course, 'grade' => 100));
+        $cm = get_coursemodule_from_instance('assign', $assignrecord->id);
+        $assigncontext = context_module::instance($cm->id);
+        $assign = new assign($assigncontext, $cm, $course);
+
+        // Fetch the assignment item.
+        $giparams = array('itemtype' => 'mod', 'itemmodule' => 'assign', 'iteminstance' => $assignrecord->id,
+                'courseid' => $course->id, 'itemnumber' => 0);
+        $gi = grade_item::fetch($giparams);
+        $this->assertEquals(0, $gi->grademin);
+        $this->assertEquals(100, $gi->grademax);
+
+        // Give a grade to the student.
+        $usergrade = $assign->get_user_grade($user->id, true);
+        $usergrade->grade = 10;
+        $assign->update_grade($usergrade);
+
+        // Check the grade stored in gradebook.
+        $gg = grade_grade::fetch(array('userid' => $user->id, 'itemid' => $gi->id));
+        $this->assertEquals(10, $gg->rawgrade);
+
+        $result = $gg->get_formatted_real(3, false);
+        $this->assertEquals("10.000", $result);
+    }
+
+    public function test_grade_grade_get_formatted_letter() {
+        global $CFG;
+        $initialminmaxtouse = $CFG->grade_minmaxtouse;
+
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_user();
+        $assignrecord = $this->getDataGenerator()->create_module('assign', array('course' => $course, 'grade' => 100));
+        $cm = get_coursemodule_from_instance('assign', $assignrecord->id);
+        $assigncontext = context_module::instance($cm->id);
+        $assign = new assign($assigncontext, $cm, $course);
+
+        // Fetch the assignment item.
+        $giparams = array('itemtype' => 'mod', 'itemmodule' => 'assign', 'iteminstance' => $assignrecord->id,
+                'courseid' => $course->id, 'itemnumber' => 0);
+        $gi = grade_item::fetch($giparams);
+        $this->assertEquals(0, $gi->grademin);
+        $this->assertEquals(100, $gi->grademax);
+
+        // Give a grade to the student.
+        $usergrade = $assign->get_user_grade($user->id, true);
+        $usergrade->grade = 48;
+        $assign->update_grade($usergrade);
+
+        // Check the grade stored in gradebook.
+        $gg = grade_grade::fetch(array('userid' => $user->id, 'itemid' => $gi->id));
+        $this->assertEquals(48, $gg->rawgrade);
+        $this->assertEquals(0, $gg->get_grade_min());
+        $this->assertEquals(100, $gg->get_grade_max());
+
+        // Change the min/max grade of the item.
+        $gi->grademax = 50;
+        $gi->grademin = 2;
+        $gi->update();
+        // Make sure the grade_grade has the reference to the current grade item.
+        $gg->grade_item =& $gi;
+
+        $CFG->grade_minmaxtouse = GRADE_MIN_MAX_FROM_GRADE_ITEM;
+        grade_set_setting($course->id, 'minmaxtouse', null); // Ensure no course setting.
+        // We expect it to be ((grade-min)/(max-min))*100.
+        $result = $gg->get_formatted_letter();
+        $this->assertEquals("A", $result);
+
+        $CFG->grade_minmaxtouse = GRADE_MIN_MAX_FROM_GRADE_GRADE;
+        grade_set_setting($course->id, 'minmaxtouse', null); // Makes sure setting cache is cleared.
+        $result = $gg->get_formatted_letter();
+        $this->assertEquals("F", $result);
+
+        $gg->finalgrade = null;
+        $result = $gg->get_formatted_letter();
+        $this->assertEquals("-", $result);
+
+        $CFG->grade_minmaxtouse = $initialminmaxtouse;
+    }
+
+    public function test_grade_grade_get_formatted_grade() {
+        global $CFG;
+        $initialminmaxtouse = $CFG->grade_minmaxtouse;
+
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $user = $this->getDataGenerator()->create_user();
+        $assignrecord = $this->getDataGenerator()->create_module('assign', array('course' => $course, 'grade' => 100));
+        $cm = get_coursemodule_from_instance('assign', $assignrecord->id);
+        $assigncontext = context_module::instance($cm->id);
+        $assign = new assign($assigncontext, $cm, $course);
+
+        // Fetch the assignment item.
+        $giparams = array('itemtype' => 'mod', 'itemmodule' => 'assign', 'iteminstance' => $assignrecord->id,
+                'courseid' => $course->id, 'itemnumber' => 0);
+        $gi = grade_item::fetch($giparams);
+        $this->assertEquals(0, $gi->grademin);
+        $this->assertEquals(100, $gi->grademax);
+
+        // Give a grade to the student.
+        $usergrade = $assign->get_user_grade($user->id, true);
+        $usergrade->grade = 48;
+        $assign->update_grade($usergrade);
+
+        // Check the grade stored in gradebook.
+        $gg = grade_grade::fetch(array('userid' => $user->id, 'itemid' => $gi->id));
+        $this->assertEquals(48, $gg->rawgrade);
+        $this->assertEquals(0, $gg->get_grade_min());
+        $this->assertEquals(100, $gg->get_grade_max());
+
+        // Change the min/max grade of the item.
+        $gi->grademax = 50;
+        $gi->grademin = 2;
+        $gi->update();
+        // Make sure the grade_grade has the reference to the current grade item.
+        $gg->grade_item =& $gi;
+
+        $CFG->grade_minmaxtouse = GRADE_MIN_MAX_FROM_GRADE_ITEM;
+        grade_set_setting($course->id, 'minmaxtouse', null); // Ensure no course setting.
+        // We expect it to be ((grade-min)/(max-min))*100.
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_REAL, 3);
+        $this->assertEquals("48.000", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_PERCENTAGE, 3);
+        $this->assertEquals("95.833 %", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_LETTER, 3);
+        $this->assertEquals("A", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_REAL_PERCENTAGE, 3);
+        $this->assertEquals("48.000 (95.833 %)", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_REAL_LETTER, 3);
+        $this->assertEquals("48.000 (A)", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_PERCENTAGE_REAL, 3);
+        $this->assertEquals("95.833 % (48.000)", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_LETTER_REAL, 3);
+        $this->assertEquals("A (48.000)", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_LETTER_PERCENTAGE, 3);
+        $this->assertEquals("A (95.833 %)", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_PERCENTAGE_LETTER, 3);
+        $this->assertEquals("95.833 % (A)", $result);
+
+        $CFG->grade_minmaxtouse = GRADE_MIN_MAX_FROM_GRADE_GRADE;
+        grade_set_setting($course->id, 'minmaxtouse', null); // Makes sure setting cache is cleared.
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_REAL, 3);
+        $this->assertEquals("48.000", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_PERCENTAGE, 3);
+        $this->assertEquals("48.000 %", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_LETTER, 3);
+        $this->assertEquals("F", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_REAL_PERCENTAGE, 3);
+        $this->assertEquals("48.000 (48.000 %)", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_REAL_LETTER, 3);
+        $this->assertEquals("48.000 (F)", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_PERCENTAGE_REAL, 3);
+        $this->assertEquals("48.000 % (48.000)", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_LETTER_REAL, 3);
+        $this->assertEquals("F (48.000)", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_LETTER_PERCENTAGE, 3);
+        $this->assertEquals("F (48.000 %)", $result);
+        $result = $gg->get_formatted_grade(false, GRADE_DISPLAY_TYPE_PERCENTAGE_LETTER, 3);
+        $this->assertEquals("48.000 % (F)", $result);
+
+        $gg->finalgrade = null;
+        $result = $gg->get_formatted_grade();
+        $this->assertEquals("-", $result);
+
+        $CFG->grade_minmaxtouse = $initialminmaxtouse;
+    }
 }
