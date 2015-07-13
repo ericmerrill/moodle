@@ -185,6 +185,7 @@ class grade_grade extends grade_object {
 //     protected $displaymax = null;
 
     protected $reportaggexclude = false;
+    protected $reporthidden = false;
 
     //public $hidevalue = false;
 
@@ -465,8 +466,10 @@ class grade_grade extends grade_object {
     // todo hidden until
     // todo conditional hidden?
     // todo calculated
+    // -todo check grade_grade userid
+    // todo block update with vis set
 
-    public function compute_hidden_grades($visibility, &$grades = array(), &$items = array()) {
+    public function compute_report_grades($visibility, &$grades = array(), &$items = array()) {
         $grades[$this->itemid] = $this;
 
         // If we are already in the requested visibility mode, we don't need to do more.
@@ -494,20 +497,30 @@ class grade_grade extends grade_object {
             //$this->rawgrademin = null;
             //$this->rawgrademax = null;
             $this->reportaggexclude = true;
-            $this->aggregationweight = 0;
-            $this->aggregationstatus = 'dropped';
+            //$this->aggregationweight = 0;
+            //$this->aggregationstatus = 'dropped';
         }
 
-        if ($this->is_excluded()) {
+        /*if ($this->is_excluded()) {
             $this->reportaggexclude = true;
             $this->aggregationweight = null;
             $this->aggregationstatus = 'excluded';
+        }*/
+
+        // Compute if this item should be hidden and/or excluded.
+        if ($this->is_hidden()) {
+            if ($visibility !== GRADE_REPORT_SHOW_REAL_TOTAL_IF_CONTAINS_HIDDEN) {
+                $this->reportaggexclude = true;
+            }
+            $this->reporthidden = true;
+        } else if ($this->is_excluded()) {
+            $this->reportaggexclude = true;
         }
 
         $dependson = $this->grade_item->depends_on();
 
-        // If this is a lone grade item, we have nothing more to do here.
-        if (empty($dependson)) {
+        // If this is a lone grade item, we have nothing more to do.
+        if (empty($dependson) || $this->grade_item->is_calculated()) {
             return;
         }
 
@@ -523,23 +536,37 @@ class grade_grade extends grade_object {
                 $items[$dependancy] = $item;
             }
 
-            if (isset($grades[$dependancy])) {
+            if (isset($grades[$dependancy]) && $grades[$dependancy]->userid === $this->userid) {
                 $gradegrade = $grades[$dependancy];
             } else {
                 $gradegrade = $item->get_grade($this->userid, true);
             }
 
-            $gradegrade->compute_hidden_grades($visibility, $grades, $items);
+            $gradegrade->compute_report_grades($visibility, $grades, $items);
 
             if ($gradegrade->is_hidden() || $gradegrade->containshidden) {
                 $this->containshidden = true;
             }
             if (!$gradegrade->reportaggexclude) {
-            //if (!is_null($gradegrade->finalgrade) && !$gradegrade->is_excluded()) {
-                //$values[$item->id] = $gradegrade->finalgrade;
-                $values[$item->id] = grade_grade::standardise_score($gradegrade->finalgrade, $gradegrade->get_grade_min(), $gradegrade->get_grade_max(), 0, 1);
+                $values[$item->id] = grade_grade::standardise_score($gradegrade->finalgrade,
+                                                                    $gradegrade->get_grade_min(),
+                                                                    $gradegrade->get_grade_max(),
+                                                                    0,
+                                                                    1);
                 $overmax[$item->id] = $gradegrade->get_grade_max();
                 $overmin[$item->id] = $gradegrade->get_grade_min();
+            }
+            if ($this->reportaggexclude) {
+                $this->aggregationweight = null;
+                $this->aggregationstatus = 'excluded';
+            }
+            if ($gradegrade->reporthidden) {
+                // todo blank out the grade item.
+                // todo set drop/exlude
+                if ($visibility === GRADE_REPORT_SHOW_TOTAL_IF_CONTAINS_HIDDEN) {
+                    $this->aggregationweight = null;
+                    $this->aggregationstatus = 'dropped';
+                }
             }
         }
 
