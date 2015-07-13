@@ -185,7 +185,6 @@ class grade_grade extends grade_object {
 //     protected $displaymax = null;
 
     protected $reportaggexclude = false;
-    protected $reporthidden = false;
 
     //public $hidevalue = false;
 
@@ -492,30 +491,32 @@ class grade_grade extends grade_object {
         $this->visibility = $visibility;
 
         // Set this item to have no value if it shouldn't be used in future computations.
-        if ($this->is_hidden() && $visibility == GRADE_REPORT_SHOW_TOTAL_IF_CONTAINS_HIDDEN) {
-            //$this->finalgrade = null;
-            //$this->rawgrademin = null;
-            //$this->rawgrademax = null;
+        if ($this->is_hidden()) {
             $this->reportaggexclude = true;
-            //$this->aggregationweight = 0;
-            //$this->aggregationstatus = 'dropped';
+            $this->finalgrade = null;
+            $this->rawgrademin = null;
+            $this->rawgrademax = null;
+            if ($visibility == GRADE_REPORT_SHOW_TOTAL_IF_CONTAINS_HIDDEN) {
+                $this->aggregationweight = null;
+                $this->aggregationstatus = 'dropped';
+            }
         }
 
-        /*if ($this->is_excluded()) {
+        if ($this->is_excluded()) {
             $this->reportaggexclude = true;
             $this->aggregationweight = null;
             $this->aggregationstatus = 'excluded';
-        }*/
+        }
 
         // Compute if this item should be hidden and/or excluded.
-        if ($this->is_hidden()) {
+        /*if ($this->is_hidden()) {
             if ($visibility !== GRADE_REPORT_SHOW_REAL_TOTAL_IF_CONTAINS_HIDDEN) {
                 $this->reportaggexclude = true;
             }
             $this->reporthidden = true;
         } else if ($this->is_excluded()) {
             $this->reportaggexclude = true;
-        }
+        }*/
 
         $dependson = $this->grade_item->depends_on();
 
@@ -523,6 +524,8 @@ class grade_grade extends grade_object {
         if (empty($dependson) || $this->grade_item->is_calculated()) {
             return;
         }
+
+        $category = $this->grade_item->load_item_category();
 
         // Compute each dependancy.
         $values = array();
@@ -555,8 +558,18 @@ class grade_grade extends grade_object {
                                                                     1);
                 $overmax[$item->id] = $gradegrade->get_grade_max();
                 $overmin[$item->id] = $gradegrade->get_grade_min();
+
+                if (is_null($gradegrade->finalgrade)) {
+                    if ($category->aggregateonlygraded) {
+                        unset($values[$item->id]);
+                        unset($overmin[$item->id]);
+                        unset($overmax[$item->id]);
+                    } else {
+                        $values[$item->id] = 0;
+                    }
+                }
             }
-            if ($this->reportaggexclude) {
+            /*if ($this->reportaggexclude) {
                 $this->aggregationweight = null;
                 $this->aggregationstatus = 'excluded';
             }
@@ -567,7 +580,7 @@ class grade_grade extends grade_object {
                     $this->aggregationweight = null;
                     $this->aggregationstatus = 'dropped';
                 }
-            }
+            }*/
         }
 
         // If there are no hidden items in here, or we are hidden, then there is nothing to do.
@@ -580,6 +593,7 @@ class grade_grade extends grade_object {
             return;
         }
 
+        // If we contain hidden and are in the right mode, we should blank our grade.
         if ($visibility === GRADE_REPORT_HIDE_TOTAL_IF_CONTAINS_HIDDEN && $this->containshidden) {
             $this->finalgrade = null;
             $this->rawgrademin = null;
@@ -592,7 +606,7 @@ class grade_grade extends grade_object {
             return;
         }
 
-        $category = $this->grade_item->load_item_category();
+
 
         // Aggregate the category.
         $weights = array();
