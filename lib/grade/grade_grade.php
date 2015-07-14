@@ -414,52 +414,6 @@ class grade_grade extends grade_object {
         return $max;
     }
 
-    public function get_grade_percent() {
-        list($min, $max) = $this->get_grade_min_and_max();
-
-        if ($min == $max) {
-            return '';
-        }
-        $value = $this->bounded_grade();
-        $percentage = (($value-$min)*100)/($max-$min);
-        return format_float($percentage, 3, false).' %';
-    }
-
-    public function bounded_grade() {
-        global $CFG;
-        list($grademin, $grademax) = $this->get_grade_min_and_max();
-
-        $gradevalue = $this->finalgrade;
-
-        if (is_null($gradevalue)) {
-            return null;
-        }
-
-        if ($this->grade_item->gradetype == GRADE_TYPE_SCALE) {
-            // no >100% grades hack for scale grades!
-            // 1.5 is rounded to 2 ;-)
-            return (int)bounded_number($grademin, round($gradevalue+0.00001), $grademax);
-        }
-
-        //$grademax = $this->grademax;
-
-        // NOTE: if you change this value you must manually reset the needsupdate flag in all grade items
-        $maxcoef = isset($CFG->gradeoverhundredprocentmax) ? $CFG->gradeoverhundredprocentmax : 10; // 1000% max by default
-
-        if (!empty($CFG->unlimitedgrades)) {
-            // NOTE: if you change this value you must manually reset the needsupdate flag in all grade items
-            $grademax = $grademax * $maxcoef;
-        } else if ($this->grade_item->is_category_item() or $this->grade_item->is_course_item()) {
-            $category = $this->grade_item->load_item_category();
-            if ($category->aggregation >= 100) {
-                // grade >100% hack
-                $grademax = $grademax * $maxcoef;
-            }
-        }
-
-        return (float)bounded_number($grademin, $gradevalue, $grademax);
-    }
-
     // todo grade_category->aggregateonlygraded
     // todo excluded()
     // todo hidden until
@@ -467,8 +421,9 @@ class grade_grade extends grade_object {
     // todo calculated
     // -todo check grade_grade userid
     // todo block update with vis set
+    // view hidden?
 
-    public function compute_report_grades($visibility, &$grades = array(), &$items = array()) {
+    public function compute_report_grades($visibility, $viewhidden = false, &$grades = array(), &$items = array()) {
         $grades[$this->itemid] = $this;
 
         // If we are already in the requested visibility mode, we don't need to do more.
@@ -493,9 +448,11 @@ class grade_grade extends grade_object {
         // Set this item to have no value if it shouldn't be used in future computations.
         if ($this->is_hidden()) {
             $this->reportaggexclude = true;
-            $this->finalgrade = null;
-            $this->rawgrademin = null;
-            $this->rawgrademax = null;
+            if (!$viewhidden) {
+                $this->finalgrade = null;
+                $this->rawgrademin = null;
+                $this->rawgrademax = null;
+            }
             if ($visibility == GRADE_REPORT_SHOW_TOTAL_IF_CONTAINS_HIDDEN) {
                 $this->aggregationweight = null;
                 $this->aggregationstatus = 'dropped';
@@ -521,11 +478,9 @@ class grade_grade extends grade_object {
         $dependson = $this->grade_item->depends_on();
 
         // If this is a lone grade item, we have nothing more to do.
-        if (empty($dependson) || $this->grade_item->is_calculated()) {
+        if (empty($dependson)) {
             return;
         }
-
-        $category = $this->grade_item->load_item_category();
 
         // Compute each dependancy.
         $values = array();
@@ -545,11 +500,30 @@ class grade_grade extends grade_object {
                 $gradegrade = $item->get_grade($this->userid, true);
             }
 
-            $gradegrade->compute_report_grades($visibility, $grades, $items);
+            $gradegrade->compute_report_grades($visibility, $viewhidden, $grades, $items);
 
             if ($gradegrade->is_hidden() || $gradegrade->containshidden) {
                 $this->containshidden = true;
             }
+        }
+
+        if ($this->grade_item->is_calculated()) {
+            if ($this->containshidden) {
+                if ($visibility == GRADE_REPORT_SHOW_TOTAL_IF_CONTAINS_HIDDEN) {
+                    $this->finalgrade = null;
+                    $this->rawgrademin = null;
+                    $this->rawgrademax = null;
+                }
+            }
+            return;
+        }
+
+        $category = $this->grade_item->load_item_category();
+
+        foreach ($dependson as $dependancy) {
+            $gradegrade = $grades[$dependancy];
+            $item = $items[$dependancy];
+
             if (!$gradegrade->reportaggexclude) {
                 $values[$item->id] = grade_grade::standardise_score($gradegrade->finalgrade,
                                                                     $gradegrade->get_grade_min(),
@@ -569,18 +543,6 @@ class grade_grade extends grade_object {
                     }
                 }
             }
-            /*if ($this->reportaggexclude) {
-                $this->aggregationweight = null;
-                $this->aggregationstatus = 'excluded';
-            }
-            if ($gradegrade->reporthidden) {
-                // todo blank out the grade item.
-                // todo set drop/exlude
-                if ($visibility === GRADE_REPORT_SHOW_TOTAL_IF_CONTAINS_HIDDEN) {
-                    $this->aggregationweight = null;
-                    $this->aggregationstatus = 'dropped';
-                }
-            }*/
         }
 
         // If there are no hidden items in here, or we are hidden, then there is nothing to do.
@@ -638,65 +600,7 @@ class grade_grade extends grade_object {
     GRADE_REPORT_SHOW_TOTAL_IF_CONTAINS_HIDDEN
     GRADE_REPORT_SHOW_REAL_TOTAL_IF_CONTAINS_HIDDEN
     */
-    public function compute_visible_grade($visibility, &$grades = array(), &$items = array()) {
-        $grades[$this->itemid] = $this;
 
-        // If we are already in the requested visibility mode, we don't need to do more.
-        if ($visibility === $this->visibility) {
-            return;
-        }
-
-        // Load the grade item from cache array, or fetch and set into the array.
-        if (!isset($this->grade_item)) {
-            if (isset($items[$this->itemid])) {
-                $this->grade_item = $items[$this->itemid];
-            } else {
-                $this->load_grade_item();
-                $items[$this->itemid] = $this->grade_item;
-            }
-        } else {
-            $items[$this->itemid] = $this->grade_item;
-        }
-
-        $dependson = $this->grade_item->depends_on();
-
-        // if this is a lone grade item.
-        if (empty($dependson)) {
-            //if (
-        }
-
-        foreach ($dependson as $dependancy) {
-            if (isset($items[$dependancy])) {
-                $item = $items[$dependancy];
-            } else {
-                $item = grade_item::fetch(array('id' => $dependancy));
-                $items[$dependancy] = $item;
-            }
-
-            if (isset($grades[$dependancy])) {
-                $gradegrade = $grades[$dependancy];
-            } else {
-                $gradegrade = $item->get_grade($this->userid, true);
-            }
-
-            $gradegrade->compute_visible_grade($visibility, $grades, $items);
-        }
-
-        if ($this->is_hidden() && !$viewhidden) {
-//            $this->
-        }
-
-        // If we are already in the requested visibility mode.
-        if ($visibility === $this->visibility) {
-            return;
-        }
-
-        // If the visibility mode is including hidden, then we don't need to do anything.
-        if ($visibility === GRADE_REPORT_SHOW_REAL_TOTAL_IF_CONTAINS_HIDDEN) {
-            $this->visibility = GRADE_REPORT_SHOW_REAL_TOTAL_IF_CONTAINS_HIDDEN;
-            return;
-        }
-    }
 
     /**
      * Makes sure value is a valid grade value for this grade.

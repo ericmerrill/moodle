@@ -122,9 +122,9 @@ if ($type === "usercourse.png") {
     }
 
     $rawlogs = report_log_usercourse($user->id, $courseselect, $coursestart, $logreader);
-
+error_log(print_r($rawlogs, true));
     if (empty($rawlogs)) {
-        return;
+        //return;
     }
 
     foreach ($rawlogs as $rawlog) {
@@ -198,7 +198,7 @@ if ($type === "usercourse.png") {
     $rawlogs = report_log_userday($user->id, $courseselect, $daystart, $logreader);
 
     if (empty($rawlogs)) {
-        return;
+//        return;
     }
 
     foreach ($rawlogs as $rawlog) {

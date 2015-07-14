@@ -158,7 +158,7 @@ $item = grade_item::fetch_course_item($courseid);
 $grade = $item->get_grade($userid);
 echo $grade->finalgrade;
 $grade->compute_report_grades(GRADE_REPORT_SHOW_TOTAL_IF_CONTAINS_HIDDEN);
-echo $grade->finalgrade;echo ':'.$grade->get_grade_percent();
+echo $grade->finalgrade;echo ':'.$grade->get_percentage();
     // Create a report instance
     $report = new grade_report_user($courseid, $gpr, $context, $userid);
 
