@@ -857,13 +857,13 @@ class manager {
         $eventdata->component           = 'tool_messageinbound';
         $eventdata->name                = 'invalidrecipienthandler';
 
-        $userfrom = clone $USER;
+        $userfrom = \core_user::get_support_user();
         $userfrom->customheaders = array();
         // Adding the In-Reply-To header ensures that it is seen as a reply.
         $userfrom->customheaders[] = 'In-Reply-To: ' . $messageid;
 
         // The message will be sent from the intended user.
-        $eventdata->userfrom            = \core_user::get_noreply_user();
+        $eventdata->userfrom            = $userfrom;
         $eventdata->userto              = $USER;
         $eventdata->subject             = $this->get_reply_subject($this->currentmessagedata->envelope->subject);
         $eventdata->fullmessage         = get_string('invalidrecipientdescription', 'tool_messageinbound', $this->currentmessagedata);
