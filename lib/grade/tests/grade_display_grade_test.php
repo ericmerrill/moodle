@@ -29,7 +29,7 @@
 require_once(__DIR__.'/fixtures/lib.php');
 
 
-class core_grade_grade_testcase extends grade_base_testcase {
+class core_grade_display_grade_testcase extends grade_base_testcase {
 
 
 
