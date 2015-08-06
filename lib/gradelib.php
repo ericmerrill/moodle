@@ -656,7 +656,7 @@ function grade_set_setting($courseid, $name, $value) {
  * @param float $max The maximum possible value
  * @return float The computed percentage
  */
-function grade_get_percentage($value, $min, $max) {
+function grade_calculate_percentage($value, $min, $max) {
     return (($value-$min) * 100) / ($max - $min);
 }
 

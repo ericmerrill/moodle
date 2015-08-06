@@ -450,7 +450,7 @@ class grade_grade extends grade_object {
         // Make sure the grade it properly bounded.
         $value = $this->bounded_grade($this->finalgrade);
 
-        return grade_get_percentage($value, $min, $max);
+        return grade_calculate_percentage($value, $min, $max);
     }
 
     /**
