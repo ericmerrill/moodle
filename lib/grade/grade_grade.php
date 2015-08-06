@@ -199,13 +199,14 @@ class grade_grade extends grade_object {
         $result = array();
         if ($grade_records = $DB->get_records_select('grade_grades', "itemid=:giid AND userid $user_ids_cvs", $params)) {
             foreach ($grade_records as $record) {
-                $result[$record->userid] = new grade_grade($record, false);
+                // Use new static so that this will create sub-classes too.
+                $result[$record->userid] = new static($record, false);
             }
         }
         if ($include_missing) {
             foreach ($userids as $userid) {
                 if (!array_key_exists($userid, $result)) {
-                    $grade_grade = new grade_grade();
+                    $grade_grade = new static();
                     $grade_grade->userid = $userid;
                     $grade_grade->itemid = $grade_item->id;
                     $result[$userid] = $grade_grade;
@@ -397,6 +398,62 @@ class grade_grade extends grade_object {
     }
 
     /**
+     * Makes sure value is a valid grade value for this grade.
+     *
+     * @param float $gradevalue
+     * @return mixed float or int fixed grade value
+     */
+    public function bounded_grade($gradevalue) {
+        global $CFG;
+
+        if (is_null($gradevalue)) {
+            return null;
+        }
+
+        list($grademin, $grademax) = $this->get_grade_min_and_max();
+
+        if ($this->grade_item->gradetype == GRADE_TYPE_SCALE) {
+            // We can't allow out of range scales. We also have to round to integers.
+            return (int)bounded_number($grademin, round($gradevalue + 0.00001), $grademax);
+        }
+
+        $maxcoef = isset($CFG->gradeoverhundredprocentmax) ? $CFG->gradeoverhundredprocentmax : 10; // 1000% max by default.
+
+        if (!empty($CFG->unlimitedgrades)) {
+            $grademax = $grademax * $maxcoef;
+        } else if ($this->grade_item->is_category_item() or $this->grade_item->is_course_item()) {
+            $category = $this->grade_item->load_item_category();
+            if ($category->aggregation >= 100) {
+                // Grade >100%.
+                $grademax = $grademax * $maxcoef;
+            }
+        }
+
+        return (float)bounded_number($grademin, $gradevalue, $grademax);
+    }
+
+    /**
+     * Get the percent (in 100 scale) for the current grade.
+     *
+     * @since  Moodle 2.8.8, 2.9.2
+     * @return mixed float for grade, null for null grade, false for invalid.
+     */
+    public function get_percentage() {
+        if (is_null($this->finalgrade)) {
+            return null;
+        }
+
+        list($min, $max) = $this->get_grade_min_and_max();
+        if ($min == $max) {
+            return false;
+        }
+        // Make sure the grade it properly bounded.
+        $value = $this->bounded_grade($this->finalgrade);
+
+        return (($value-$min) * 100) / ($max - $min);
+    }
+
+    /**
      * Returns timestamp when last graded, null if no grade present
      *
      * @return int
@@ -523,7 +580,8 @@ class grade_grade extends grade_object {
         $params[] = $now;
         $rs = $DB->get_recordset_select('grade_grades', "itemid $usql AND locked = 0 AND locktime > 0 AND locktime < ?", $params);
         foreach ($rs as $grade) {
-            $grade_grade = new grade_grade($grade, false);
+            // Use new static so that this will create sub-classes too.
+            $grade_grade = new static($grade, false);
             $grade_grade->locked = time();
             $grade_grade->update('locktime');
         }

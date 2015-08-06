@@ -2379,3 +2379,78 @@ function get_referer($stripquery = true) {
         return '';
     }
 }
+
+/**
+ * Returns string representation of grade value
+ *
+ * @deprecated since Moodle 3.0 MDL-50582 - please do not use this function any more.
+ * @todo Remove this function in Moodle 3.2
+ * @param float $value The grade value
+ * @param object $gradeitem Grade item object passed by reference to prevent scale reloading
+ * @param bool $localized use localised decimal separator
+ * @param int $displaytype type of display. For example GRADE_DISPLAY_TYPE_REAL, GRADE_DISPLAY_TYPE_PERCENTAGE, GRADE_DISPLAY_TYPE_LETTER
+ * @param int $decimals The number of decimal places when displaying float values
+ * @return string
+ */
+function grade_format_gradevalue($value, &$gradeitem, $localized=true, $displaytype=null, $decimals=null) {
+    debugging('grade_format_gradevalue() is deprecated. Please use grade_display_grade::get_formatted_grade() instead.',
+            DEBUG_DEVELOPER);
+
+    return grade_display_grade::get_formatted_temp_grade($value, $gradeitem, $localized, $displaytype, $decimals);
+}
+
+/**
+ * Returns a float representation of a grade value
+ *
+ * @deprecated since Moodle 3.0 MDL-50582 - please do not use this function any more.
+ * @todo Remove this function in Moodle 3.2
+ * @param float $value The grade value
+ * @param object $gradeitem Grade item object
+ * @param int $decimals The number of decimal places
+ * @param bool $localized use localised decimal separator
+ * @return string
+ */
+function grade_format_gradevalue_real($value, $gradeitem, $decimals, $localized) {
+    debugging('grade_format_gradevalue_real() is deprecated. Please use grade_display_grade::get_formatted_real() instead.',
+            DEBUG_DEVELOPER);
+
+    $displaygrade = grade_display_grade::create_temp_grade($value, $gradeitem);
+    return $displaygrade->get_formatted_real($localized, $decimals);
+}
+
+/**
+ * Returns a percentage representation of a grade value
+ *
+ * @deprecated since Moodle 3.0 MDL-50582 - please do not use this function any more.
+ * @todo Remove this function in Moodle 3.2
+ * @param float $value The grade value
+ * @param object $gradeitem Grade item object
+ * @param int $decimals The number of decimal places
+ * @param bool $localized use localised decimal separator
+ * @return string
+ */
+function grade_format_gradevalue_percentage($value, $gradeitem, $decimals, $localized) {
+    debugging('grade_format_gradevalue_percentage() is deprecated. '.
+            'Please use grade_display_grade::get_formatted_percentage() instead.', DEBUG_DEVELOPER);
+
+    $displaygrade = grade_display_grade::create_temp_grade($value, $gradeitem);
+    return $displaygrade->get_formatted_percentage($localized, $decimals);
+}
+
+/**
+ * Returns a letter grade representation of a grade value
+ * The array of grade letters used is produced by {@link grade_get_letters()} using the course context
+ *
+ * @deprecated since Moodle 3.0 MDL-50582 - please do not use this function any more.
+ * @todo Remove this function in Moodle 3.2
+ * @param float $value The grade value
+ * @param object $gradeitem Grade item object
+ * @return string
+ */
+function grade_format_gradevalue_letter($value, $gradeitem) {
+    debugging('grade_format_gradevalue_letter() is deprecated. Please use grade_display_grade::get_formatted_letter() instead.',
+            DEBUG_DEVELOPER);
+
+    $displaygrade = grade_display_grade::create_temp_grade($value, $gradeitem);
+    return $displaygrade->get_formatted_letter($localized, $decimals);
+}

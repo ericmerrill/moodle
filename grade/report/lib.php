@@ -418,143 +418,44 @@ abstract class grade_report {
 
     /**
      * Optionally blank out course/category totals if they contain any hidden items
+     *
+     * @deprecated since Moodle 3.0 MDL-50582 - please do not use this function any more.
+     * @todo Remove this function in Moodle 3.2
      * @param string $courseid the course id
      * @param string $course_item an instance of grade_item
      * @param string $finalgrade the grade for the course_item
      * @return array[] containing values for 'grade', 'grademax', 'grademin', 'aggregationstatus' and 'aggregationweight'
      */
+
     protected function blank_hidden_total_and_adjust_bounds($courseid, $course_item, $finalgrade) {
-        global $CFG, $DB;
-        static $hiding_affected = null;//array of items in this course affected by hiding
+        global $DB;
 
-        // If we're dealing with multiple users we need to know when we've moved on to a new user.
-        static $previous_userid = null;
-
-        // If we're dealing with multiple courses we need to know when we've moved on to a new course.
-        static $previous_courseid = null;
-
-        $coursegradegrade = grade_grade::fetch(array('userid'=>$this->user->id, 'itemid'=>$course_item->id));
-        $grademin = $course_item->grademin;
-        $grademax = $course_item->grademax;
-        if ($coursegradegrade) {
-            $grademin = $coursegradegrade->get_grade_min();
-            $grademax = $coursegradegrade->get_grade_max();
-        } else {
-            $coursegradegrade = new grade_grade(array('userid'=>$this->user->id, 'itemid'=>$course_item->id), false);
-        }
-        $hint = $coursegradegrade->get_aggregation_hint();
-        $aggregationstatus = $hint['status'];
-        $aggregationweight = $hint['weight'];
+        debugging('blank_hidden_total_and_adjust_bounds() is deprecated. '.
+                'Please use grade_display_grade for display grade determination instead.', DEBUG_DEVELOPER);
 
         if (!is_array($this->showtotalsifcontainhidden)) {
             debugging('showtotalsifcontainhidden should be an array', DEBUG_DEVELOPER);
             $this->showtotalsifcontainhidden = array($courseid => $this->showtotalsifcontainhidden);
         }
 
-        if ($this->showtotalsifcontainhidden[$courseid] == GRADE_REPORT_SHOW_REAL_TOTAL_IF_CONTAINS_HIDDEN) {
-            return array('grade' => $finalgrade,
-                         'grademin' => $grademin,
-                         'grademax' => $grademax,
-                         'aggregationstatus' => $aggregationstatus,
-                         'aggregationweight' => $aggregationweight);
+        $coursegradegrade = grade_grade::fetch(array('userid'=>$this->user->id, 'itemid'=>$course_item->id));
+        if ($coursegradegrade) {
+            $coursegradegrade->finalgrade = $finalgrade;
+        } else {
+            $coursegradegrade = new grade_grade(array('userid'=>$this->user->id, 'itemid'=>$course_item->id, 'finalgrade' => $finalgrade, 'rawgrademax' => $course_item->grademax, 'rawgrademin' => $course_item->grademin), false);
         }
+        $displaygrade = new grade_display_grade($coursegradegrade, false, $this->showtotalsifcontainhidden[$courseid]);
 
-        // If we've moved on to another course or user, reload the grades.
-        if ($previous_userid != $this->user->id || $previous_courseid != $courseid) {
-            $hiding_affected = null;
-            $previous_userid = $this->user->id;
-            $previous_courseid = $courseid;
-        }
-
-        if (!$hiding_affected) {
-            $items = grade_item::fetch_all(array('courseid'=>$courseid));
-            $grades = array();
-            $sql = "SELECT g.*
-                      FROM {grade_grades} g
-                      JOIN {grade_items} gi ON gi.id = g.itemid
-                     WHERE g.userid = {$this->user->id} AND gi.courseid = {$courseid}";
-            if ($gradesrecords = $DB->get_records_sql($sql)) {
-                foreach ($gradesrecords as $grade) {
-                    $grades[$grade->itemid] = new grade_grade($grade, false);
-                }
-                unset($gradesrecords);
-            }
-            foreach ($items as $itemid => $unused) {
-                if (!isset($grades[$itemid])) {
-                    $grade_grade = new grade_grade();
-                    $grade_grade->userid = $this->user->id;
-                    $grade_grade->itemid = $items[$itemid]->id;
-                    $grades[$itemid] = $grade_grade;
-                }
-                $grades[$itemid]->grade_item =& $items[$itemid];
-            }
-            $hiding_affected = grade_grade::get_hiding_affected($grades, $items);
-        }
-
-        //if the item definitely depends on a hidden item
-        if (array_key_exists($course_item->id, $hiding_affected['altered']) ||
-                array_key_exists($course_item->id, $hiding_affected['alteredgrademin']) ||
-                array_key_exists($course_item->id, $hiding_affected['alteredgrademax']) ||
-                array_key_exists($course_item->id, $hiding_affected['alteredaggregationstatus']) ||
-                array_key_exists($course_item->id, $hiding_affected['alteredaggregationweight'])) {
-            if (!$this->showtotalsifcontainhidden[$courseid] && array_key_exists($course_item->id, $hiding_affected['altered'])) {
-                // Hide the grade, but only when it has changed.
-                $finalgrade = null;
-            } else {
-                //use reprocessed marks that exclude hidden items
-                if (array_key_exists($course_item->id, $hiding_affected['altered'])) {
-                    $finalgrade = $hiding_affected['altered'][$course_item->id];
-                }
-                if (array_key_exists($course_item->id, $hiding_affected['alteredgrademin'])) {
-                    $grademin = $hiding_affected['alteredgrademin'][$course_item->id];
-                }
-                if (array_key_exists($course_item->id, $hiding_affected['alteredgrademax'])) {
-                    $grademax = $hiding_affected['alteredgrademax'][$course_item->id];
-                }
-                if (array_key_exists($course_item->id, $hiding_affected['alteredaggregationstatus'])) {
-                    $aggregationstatus = $hiding_affected['alteredaggregationstatus'][$course_item->id];
-                }
-                if (array_key_exists($course_item->id, $hiding_affected['alteredaggregationweight'])) {
-                    $aggregationweight = $hiding_affected['alteredaggregationweight'][$course_item->id];
-                }
-
-                if (!$this->showtotalsifcontainhidden[$courseid]) {
-                    // If the course total is hidden we must hide the weight otherwise
-                    // it can be used to compute the course total.
-                    $aggregationstatus = 'unknown';
-                    $aggregationweight = null;
-                }
-            }
-        } else if (!empty($hiding_affected['unknown'][$course_item->id])) {
-            //not sure whether or not this item depends on a hidden item
-            if (!$this->showtotalsifcontainhidden[$courseid]) {
-                //hide the grade
-                $finalgrade = null;
-            } else {
-                //use reprocessed marks that exclude hidden items
-                $finalgrade = $hiding_affected['unknown'][$course_item->id];
-
-                if (array_key_exists($course_item->id, $hiding_affected['alteredgrademin'])) {
-                    $grademin = $hiding_affected['alteredgrademin'][$course_item->id];
-                }
-                if (array_key_exists($course_item->id, $hiding_affected['alteredgrademax'])) {
-                    $grademax = $hiding_affected['alteredgrademax'][$course_item->id];
-                }
-                if (array_key_exists($course_item->id, $hiding_affected['alteredaggregationstatus'])) {
-                    $aggregationstatus = $hiding_affected['alteredaggregationstatus'][$course_item->id];
-                }
-                if (array_key_exists($course_item->id, $hiding_affected['alteredaggregationweight'])) {
-                    $aggregationweight = $hiding_affected['alteredaggregationweight'][$course_item->id];
-                }
-            }
-        }
-
-        return array('grade' => $finalgrade, 'grademin' => $grademin, 'grademax' => $grademax, 'aggregationstatus'=>$aggregationstatus, 'aggregationweight'=>$aggregationweight);
+        return array('grade' => $displaygrade->finalgrade,
+                     'grademin' => $displaygrade->get_grade_min(),
+                     'grademax' => $displaygrade->get_grade_max(),
+                     'aggregationstatus' => $displaygrade->get_aggregationstatus(),
+                     'aggregationweight' => $displaygrade->get_aggregationweight());
     }
 
     /**
      * Optionally blank out course/category totals if they contain any hidden items
-     * @deprecated since Moodle 2.8 - Call blank_hidden_total_and_adjust_bounds instead.
+     * @deprecated since Moodle 2.8 - User grade_display_grade instead.
      * @param string $courseid the course id
      * @param string $course_item an instance of grade_item
      * @param string $finalgrade the grade for the course_item
@@ -565,9 +466,22 @@ abstract class grade_report {
         // the aggregated grade does not make sense without the updated min and max information.
 
         debugging('grade_report::blank_hidden_total() is deprecated.
-                   Call grade_report::blank_hidden_total_and_adjust_bounds instead.', DEBUG_DEVELOPER);
-        $result = $this->blank_hidden_total_and_adjust_bounds($courseid, $course_item, $finalgrade);
-        return $result['grade'];
+                   Please use grade_display_grade for display grade determination instead.', DEBUG_DEVELOPER);
+
+        if (!is_array($this->showtotalsifcontainhidden)) {
+            debugging('showtotalsifcontainhidden should be an array', DEBUG_DEVELOPER);
+            $this->showtotalsifcontainhidden = array($courseid => $this->showtotalsifcontainhidden);
+        }
+
+        $coursegradegrade = grade_grade::fetch(array('userid'=>$this->user->id, 'itemid'=>$course_item->id));
+        if ($coursegradegrade) {
+            $coursegradegrade->finalgrade = $finalgrade;
+        } else {
+            $coursegradegrade = new grade_grade(array('userid'=>$this->user->id, 'itemid'=>$course_item->id, 'finalgrade' => $finalgrade, 'rawgrademax' => $course_item->grademax, 'rawgrademin' => $course_item->grademin), false);
+        }
+        $displaygrade = new grade_display_grade($coursegradegrade, false, $this->showtotalsifcontainhidden[$courseid]);
+
+        return $displaygrade->finalgrade;
     }
 }
 

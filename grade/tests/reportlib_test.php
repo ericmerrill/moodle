@@ -65,6 +65,9 @@ class core_grade_reportlib_testcase extends advanced_testcase {
 
     /**
      * Tests grade_report::blank_hidden_total_and_adjust_bounds()
+     *
+     * @deprecated since Moodle 3.0 MDL-50582
+     * @todo Remove this function in Moodle 3.2
      */
     public function test_blank_hidden_total_and_adjust_bounds() {
         global $DB;
@@ -122,6 +125,7 @@ class core_grade_reportlib_testcase extends advanced_testcase {
         // Should return the supplied student total grade regardless of hiding.
         $report->showtotalsifcontainhidden = array($course->id => GRADE_REPORT_SHOW_REAL_TOTAL_IF_CONTAINS_HIDDEN);
         $result = $report->blank_hidden_total_and_adjust_bounds($course->id, $coursegradeitem, $datagrade + $forumgrade);
+        $this->assertDebuggingCalled();
         $this->assertEquals(array('grade' => $datagrade + $forumgrade,
                                   'grademax' => $coursegradeitem->grademax,
                                   'grademin' => $coursegradeitem->grademin,
@@ -130,6 +134,7 @@ class core_grade_reportlib_testcase extends advanced_testcase {
         // Should blank the student total as course grade depends on a hidden item.
         $report->showtotalsifcontainhidden = array($course->id => GRADE_REPORT_HIDE_TOTAL_IF_CONTAINS_HIDDEN);
         $result = $report->blank_hidden_total_and_adjust_bounds($course->id, $coursegradeitem, $datagrade + $forumgrade);
+        $this->assertDebuggingCalled();
         $this->assertEquals(array('grade' => null,
                                   'grademax' => $coursegradeitem->grademax,
                                   'grademin' => $coursegradeitem->grademin,
@@ -139,6 +144,7 @@ class core_grade_reportlib_testcase extends advanced_testcase {
         // Should return the course total minus the hidden database activity grade.
         $report->showtotalsifcontainhidden = array($course->id => GRADE_REPORT_SHOW_TOTAL_IF_CONTAINS_HIDDEN);
         $result = $report->blank_hidden_total_and_adjust_bounds($course->id, $coursegradeitem, $datagrade + $forumgrade);
+        $this->assertDebuggingCalled();
         $this->assertEquals(array('grade' => floatval($forumgrade),
                                   'grademax' => $coursegradeitem->grademax,
                                   'grademin' => $coursegradeitem->grademin,
@@ -198,6 +204,7 @@ class core_grade_reportlib_testcase extends advanced_testcase {
         // Should return the supplied student total grade regardless of hiding.
         $report->showtotalsifcontainhidden = array($course->id => GRADE_REPORT_SHOW_REAL_TOTAL_IF_CONTAINS_HIDDEN);
         $result = $report->blank_hidden_total_and_adjust_bounds($course->id, $coursegradeitem, $datagrade + $forumgrade);
+        $this->assertDebuggingCalled();
         $this->assertEquals(array('grade' => $datagrade + $forumgrade,
                                   'grademax' => $coursegradeitem->grademax,
                                   'grademin' => $coursegradeitem->grademin,
@@ -207,6 +214,7 @@ class core_grade_reportlib_testcase extends advanced_testcase {
         // Should blank the student total as course grade depends on a hidden item.
         $report->showtotalsifcontainhidden = array($course->id => GRADE_REPORT_HIDE_TOTAL_IF_CONTAINS_HIDDEN);
         $result = $report->blank_hidden_total_and_adjust_bounds($course->id, $coursegradeitem, $datagrade + $forumgrade);
+        $this->assertDebuggingCalled();
         $this->assertEquals(array('grade' => null,
                                   'grademax' => $coursegradeitem->grademax,
                                   'grademin' => $coursegradeitem->grademin,
@@ -217,10 +225,12 @@ class core_grade_reportlib_testcase extends advanced_testcase {
         // They are both hidden so should return null.
         $report->showtotalsifcontainhidden = array($course->id => GRADE_REPORT_SHOW_TOTAL_IF_CONTAINS_HIDDEN);
         $result = $report->blank_hidden_total_and_adjust_bounds($course->id, $coursegradeitem, $datagrade + $forumgrade);
+        $this->assertDebuggingCalled();
         $this->assertEquals(array('grade' => null,
                                   'grademax' => $coursegradeitem->grademax,
                                   'grademin' => $coursegradeitem->grademin,
                                   'aggregationstatus' => 'unknown',
                                   'aggregationweight' => null), $result);
+
     }
 }

@@ -2273,8 +2273,10 @@ class grade_item extends grade_object {
             $grademax = "100 %";
 
         } else {
-            $grademin = grade_format_gradevalue($this->grademin, $this, true, $displaytype, $decimalpoints);
-            $grademax = grade_format_gradevalue($this->grademax, $this, true, $displaytype, $decimalpoints);
+            $tempgrade = grade_display_grade::create_temp_grade($this->grademin, $this);
+            $grademin = $tempgrade->get_formatted_grade(true, $displaytype, $decimalpoints);
+            $tempgrade->finalgrade = $this->grademax;
+            $grademax = $tempgrade->get_formatted_grade(true, $displaytype, $decimalpoints);
         }
 
         return $grademin.'&ndash;'. $grademax;

@@ -218,43 +218,23 @@ class grade_report_overview extends grade_report {
                 // Get course grade_item
                 $course_item = grade_item::fetch_course_item($course->id);
 
-                // Get the stored grade
-                $course_grade = new grade_grade(array('itemid'=>$course_item->id, 'userid'=>$this->user->id));
-                $course_grade->grade_item =& $course_item;
-                $finalgrade = $course_grade->finalgrade;
 
-                if (!$canviewhidden and !is_null($finalgrade)) {
-                    if ($course_grade->is_hidden()) {
-                        $finalgrade = null;
-                    } else {
-                        $adjustedgrade = $this->blank_hidden_total_and_adjust_bounds($course->id,
-                                                                                     $course_item,
-                                                                                     $finalgrade);
+                // Get the display grade for this user and course.
+                $displaygrade = new grade_display_grade(array('itemid'=>$course_item->id, 'userid'=>$this->user->id),
+                                                        true,
+                                                        $this->showtotalsifcontainhidden[$course->id],
+                                                        $canviewhidden);
 
-                        // We temporarily adjust the view of this grade item - because the min and
-                        // max are affected by the hidden values in the aggregation.
-                        $finalgrade = $adjustedgrade['grade'];
-                        $course_item->grademax = $adjustedgrade['grademax'];
-                        $course_item->grademin = $adjustedgrade['grademin'];
-                    }
-                } else {
-                    // We must use the specific max/min because it can be different for
-                    // each grade_grade when items are excluded from sum of grades.
-                    if (!is_null($finalgrade)) {
-                        $course_item->grademin = $course_grade->get_grade_min();
-                        $course_item->grademax = $course_grade->get_grade_max();
-                    }
-                }
-
-                $data = array($courselink, grade_format_gradevalue($finalgrade, $course_item, true));
+                // Output the display grade.
+                $data = array($courselink, $displaygrade->get_formatted_grade(true));
 
                 if (!$this->showrank['any']) {
                     //nothing to do
 
-                } else if ($this->showrank[$course->id] && !is_null($finalgrade)) {
+                } else if ($this->showrank[$course->id] && !is_null($displaygrade->finalgrade)) {
                     /// find the number of users with a higher grade
                     /// please note this can not work if hidden grades involved :-( to be fixed in 2.0
-                    $params = array($finalgrade, $course_item->id);
+                    $params = array($displaygrade->finalgrade, $course_item->id);
                     $sql = "SELECT COUNT(DISTINCT(userid))
                               FROM {grade_grades}
                              WHERE finalgrade IS NOT NULL AND finalgrade > ?

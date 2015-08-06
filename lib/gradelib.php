@@ -30,6 +30,7 @@ require_once($CFG->libdir . '/grade/constants.php');
 require_once($CFG->libdir . '/grade/grade_category.php');
 require_once($CFG->libdir . '/grade/grade_item.php');
 require_once($CFG->libdir . '/grade/grade_grade.php');
+require_once($CFG->libdir . '/grade/grade_display_grade.php');
 require_once($CFG->libdir . '/grade/grade_scale.php');
 require_once($CFG->libdir . '/grade/grade_outcome.php');
 
@@ -401,7 +402,7 @@ function grade_get_grades($courseid, $itemtype, $itemmodule, $iteminstance, $use
                 }
 
                 if ($userids) {
-                    $grade_grades = grade_grade::fetch_users_grades($grade_item, $userids, true);
+                    $grade_grades = grade_display_grade::fetch_users_grades($grade_item, $userids, true);
                     foreach ($userids as $userid) {
                         $grade_grades[$userid]->grade_item =& $grade_item;
 
@@ -432,15 +433,18 @@ function grade_get_grades($courseid, $itemtype, $itemmodule, $iteminstance, $use
                             $grade->str_long_grade = $grade->str_grade;
 
                         } else {
-                            $grade->str_grade = grade_format_gradevalue($grade->grade, $grade_item);
+                            // Make a display grade.
+                            $grade->str_grade = $grade_grades[$userid]->get_formatted_grade();
                             if ($grade_item->gradetype == GRADE_TYPE_SCALE or $grade_item->get_displaytype() != GRADE_DISPLAY_TYPE_REAL) {
                                 $grade->str_long_grade = $grade->str_grade;
                             } else {
                                 $a = new stdClass();
                                 $a->grade = $grade->str_grade;
-                                $a->max   = grade_format_gradevalue($grade_item->grademax, $grade_item);
+                                // Overwrite the display grade with the max possible value.
+                                $a->max = grade_display_grade::get_formatted_temp_grade($grade_item->grademax, $grade_item);
                                 $grade->str_long_grade = get_string('gradelong', 'grades', $a);
                             }
+                            $displaygrade = null;
                         }
 
                         // create html representation of feedback
@@ -642,149 +646,6 @@ function grade_set_setting($courseid, $name, $value) {
 
     grade_get_setting($courseid, null, null, true); // reset the cache
 }
-
-/**
- * Returns string representation of grade value
- *
- * @param float $value The grade value
- * @param object $grade_item Grade item object passed by reference to prevent scale reloading
- * @param bool $localized use localised decimal separator
- * @param int $displaytype type of display. For example GRADE_DISPLAY_TYPE_REAL, GRADE_DISPLAY_TYPE_PERCENTAGE, GRADE_DISPLAY_TYPE_LETTER
- * @param int $decimals The number of decimal places when displaying float values
- * @return string
- */
-function grade_format_gradevalue($value, &$grade_item, $localized=true, $displaytype=null, $decimals=null) {
-    if ($grade_item->gradetype == GRADE_TYPE_NONE or $grade_item->gradetype == GRADE_TYPE_TEXT) {
-        return '';
-    }
-
-    // no grade yet?
-    if (is_null($value)) {
-        return '-';
-    }
-
-    if ($grade_item->gradetype != GRADE_TYPE_VALUE and $grade_item->gradetype != GRADE_TYPE_SCALE) {
-        //unknown type??
-        return '';
-    }
-
-    if (is_null($displaytype)) {
-        $displaytype = $grade_item->get_displaytype();
-    }
-
-    if (is_null($decimals)) {
-        $decimals = $grade_item->get_decimals();
-    }
-
-    switch ($displaytype) {
-        case GRADE_DISPLAY_TYPE_REAL:
-            return grade_format_gradevalue_real($value, $grade_item, $decimals, $localized);
-
-        case GRADE_DISPLAY_TYPE_PERCENTAGE:
-            return grade_format_gradevalue_percentage($value, $grade_item, $decimals, $localized);
-
-        case GRADE_DISPLAY_TYPE_LETTER:
-            return grade_format_gradevalue_letter($value, $grade_item);
-
-        case GRADE_DISPLAY_TYPE_REAL_PERCENTAGE:
-            return grade_format_gradevalue_real($value, $grade_item, $decimals, $localized) . ' (' .
-                    grade_format_gradevalue_percentage($value, $grade_item, $decimals, $localized) . ')';
-
-        case GRADE_DISPLAY_TYPE_REAL_LETTER:
-            return grade_format_gradevalue_real($value, $grade_item, $decimals, $localized) . ' (' .
-                    grade_format_gradevalue_letter($value, $grade_item) . ')';
-
-        case GRADE_DISPLAY_TYPE_PERCENTAGE_REAL:
-            return grade_format_gradevalue_percentage($value, $grade_item, $decimals, $localized) . ' (' .
-                    grade_format_gradevalue_real($value, $grade_item, $decimals, $localized) . ')';
-
-        case GRADE_DISPLAY_TYPE_LETTER_REAL:
-            return grade_format_gradevalue_letter($value, $grade_item) . ' (' .
-                    grade_format_gradevalue_real($value, $grade_item, $decimals, $localized) . ')';
-
-        case GRADE_DISPLAY_TYPE_LETTER_PERCENTAGE:
-            return grade_format_gradevalue_letter($value, $grade_item) . ' (' .
-                    grade_format_gradevalue_percentage($value, $grade_item, $decimals, $localized) . ')';
-
-        case GRADE_DISPLAY_TYPE_PERCENTAGE_LETTER:
-            return grade_format_gradevalue_percentage($value, $grade_item, $decimals, $localized) . ' (' .
-                    grade_format_gradevalue_letter($value, $grade_item) . ')';
-        default:
-            return '';
-    }
-}
-
-/**
- * Returns a float representation of a grade value
- *
- * @param float $value The grade value
- * @param object $grade_item Grade item object
- * @param int $decimals The number of decimal places
- * @param bool $localized use localised decimal separator
- * @return string
- */
-function grade_format_gradevalue_real($value, $grade_item, $decimals, $localized) {
-    if ($grade_item->gradetype == GRADE_TYPE_SCALE) {
-        if (!$scale = $grade_item->load_scale()) {
-            return get_string('error');
-        }
-
-        $value = $grade_item->bounded_grade($value);
-        return format_string($scale->scale_items[$value-1]);
-
-    } else {
-        return format_float($value, $decimals, $localized);
-    }
-}
-
-/**
- * Returns a percentage representation of a grade value
- *
- * @param float $value The grade value
- * @param object $grade_item Grade item object
- * @param int $decimals The number of decimal places
- * @param bool $localized use localised decimal separator
- * @return string
- */
-function grade_format_gradevalue_percentage($value, $grade_item, $decimals, $localized) {
-    $min = $grade_item->grademin;
-    $max = $grade_item->grademax;
-    if ($min == $max) {
-        return '';
-    }
-    $value = $grade_item->bounded_grade($value);
-    $percentage = (($value-$min)*100)/($max-$min);
-    return format_float($percentage, $decimals, $localized).' %';
-}
-
-/**
- * Returns a letter grade representation of a grade value
- * The array of grade letters used is produced by {@link grade_get_letters()} using the course context
- *
- * @param float $value The grade value
- * @param object $grade_item Grade item object
- * @return string
- */
-function grade_format_gradevalue_letter($value, $grade_item) {
-    $context = context_course::instance($grade_item->courseid, IGNORE_MISSING);
-    if (!$letters = grade_get_letters($context)) {
-        return ''; // no letters??
-    }
-
-    if (is_null($value)) {
-        return '-';
-    }
-
-    $value = grade_grade::standardise_score($value, $grade_item->grademin, $grade_item->grademax, 0, 100);
-    $value = bounded_number(0, $value, 100); // just in case
-    foreach ($letters as $boundary => $letter) {
-        if ($value >= $boundary) {
-            return format_string($letter);
-        }
-    }
-    return '-'; // no match? maybe '' would be more correct
-}
-
 
 /**
  * Returns grade options for gradebook grade category menu

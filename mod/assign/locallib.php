@@ -1338,7 +1338,7 @@ class assign {
                     $o .= '-';
                 } else {
                     $item = $this->get_grade_item();
-                    $o .= grade_format_gradevalue($grade, $item);
+                    $o .= grade_display_grade::get_formatted_temp_grade($grade, $item);
                     if ($item->get_displaytype() == GRADE_DISPLAY_TYPE_REAL) {
                         // If displaying the raw grade, also display the total value.
                         $o .= '&nbsp;/&nbsp;' . format_float($this->get_instance()->grade, 2);

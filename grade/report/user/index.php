@@ -154,7 +154,6 @@ if (has_capability('moodle/grade:viewall', $context)) { //Teachers will see all 
         }
     }
 } else { //Students will see just their own report
-
     // Create a report instance
     $report = new grade_report_user($courseid, $gpr, $context, $userid);
 

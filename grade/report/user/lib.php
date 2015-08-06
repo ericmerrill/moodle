@@ -410,24 +410,28 @@ class grade_report_user extends grade_report {
             $header_row = "row_{$eid}_{$this->user->id}";
             $header_cat = "cat_{$grade_object->categoryid}_{$this->user->id}";
 
-            if (! $grade_grade = grade_grade::fetch(array('itemid'=>$grade_object->id,'userid'=>$this->user->id))) {
-                $grade_grade = new grade_grade();
-                $grade_grade->userid = $this->user->id;
-                $grade_grade->itemid = $grade_object->id;
+            if ($this->canviewhidden) {
+                $displaymode = GRADE_REPORT_SHOW_REAL_TOTAL_IF_CONTAINS_HIDDEN;
+            } else {
+                $displaymode = $this->showtotalsifcontainhidden[$this->courseid];
             }
+            $displaygrade = new grade_display_grade(array('itemid' => $grade_object->id, 'userid' => $this->user->id),
+                                                    true,
+                                                    $displaymode,
+                                                    $this->canviewhidden);
 
-            $grade_grade->load_grade_item();
+            $displaygrade->load_grade_item();
 
             /// Hidden Items
-            if ($grade_grade->grade_item->is_hidden()) {
+            if ($displaygrade->grade_item->is_hidden()) {
                 $hidden = ' dimmed_text';
             }
 
             $hide = false;
             // If this is a hidden grade item, hide it completely from the user.
-            if ($grade_grade->is_hidden() && !$this->canviewhidden && (
+            if ($displaygrade->is_hidden() && !$this->canviewhidden && (
                     $this->showhiddenitems == GRADE_REPORT_USER_HIDE_HIDDEN ||
-                    ($this->showhiddenitems == GRADE_REPORT_USER_HIDE_UNTIL && !$grade_grade->is_hiddenuntil()))) {
+                    ($this->showhiddenitems == GRADE_REPORT_USER_HIDE_UNTIL && !$displaygrade->is_hiddenuntil()))) {
                 $hide = true;
             } else if (!empty($grade_object->itemmodule) && !empty($grade_object->iteminstance)) {
                 // The grade object can be marked visible but still be hidden if
@@ -446,31 +450,7 @@ class grade_report_user extends grade_report {
                 }
             }
 
-            // Actual Grade - We need to calculate this whether the row is hidden or not.
-            $gradeval = $grade_grade->finalgrade;
-            $hint = $grade_grade->get_aggregation_hint();
-            if (!$this->canviewhidden) {
-                /// Virtual Grade (may be calculated excluding hidden items etc).
-                $adjustedgrade = $this->blank_hidden_total_and_adjust_bounds($this->courseid,
-                                                                             $grade_grade->grade_item,
-                                                                             $gradeval);
-
-                $gradeval = $adjustedgrade['grade'];
-
-                // We temporarily adjust the view of this grade item - because the min and
-                // max are affected by the hidden values in the aggregation.
-                $grade_grade->grade_item->grademax = $adjustedgrade['grademax'];
-                $grade_grade->grade_item->grademin = $adjustedgrade['grademin'];
-                $hint['status'] = $adjustedgrade['aggregationstatus'];
-                $hint['weight'] = $adjustedgrade['aggregationweight'];
-            } else {
-                // The max and min for an aggregation may be different to the grade_item.
-                if (!is_null($gradeval)) {
-                    $grade_grade->grade_item->grademax = $grade_grade->get_grade_max();
-                    $grade_grade->grade_item->grademin = $grade_grade->get_grade_min();
-                }
-            }
-
+            $hint = $displaygrade->get_aggregation_hint();
 
             if (!$hide) {
                 /// Excluded Item
@@ -520,29 +500,29 @@ class grade_report_user extends grade_report {
                 }
 
                 if ($this->showgrade) {
-                    if ($grade_grade->grade_item->needsupdate) {
+                    if ($displaygrade->grade_item->needsupdate) {
                         $data['grade']['class'] = $class.' gradingerror';
                         $data['grade']['content'] = get_string('error');
-                    } else if (!empty($CFG->grade_hiddenasdate) and $grade_grade->get_datesubmitted() and !$this->canviewhidden and $grade_grade->is_hidden()
-                           and !$grade_grade->grade_item->is_category_item() and !$grade_grade->grade_item->is_course_item()) {
+                    } else if (!empty($CFG->grade_hiddenasdate) and $displaygrade->get_datesubmitted() and !$this->canviewhidden
+                            and $displaygrade->is_hidden() and !$displaygrade->grade_item->is_category_item() and
+                            !$displaygrade->grade_item->is_course_item()) {
                         // the problem here is that we do not have the time when grade value was modified, 'timemodified' is general modification date for grade_grades records
                         $class .= ' datesubmitted';
                         $data['grade']['class'] = $class;
-                        $data['grade']['content'] = get_string('submittedon', 'grades', userdate($grade_grade->get_datesubmitted(), get_string('strftimedatetimeshort')));
+                        $data['grade']['content'] = get_string('submittedon',
+                                                               'grades',
+                                                               userdate($displaygrade->get_datesubmitted(),
+                                                               get_string('strftimedatetimeshort')));
 
-                    } else if ($grade_grade->is_hidden()) {
+                    } else if ($displaygrade->is_hidden()) {
                         $data['grade']['class'] = $class.' dimmed_text';
                         $data['grade']['content'] = '-';
                         if ($this->canviewhidden) {
-                            $data['grade']['content'] = grade_format_gradevalue($gradeval,
-                                                                                $grade_grade->grade_item,
-                                                                                true);
+                            $data['grade']['content'] = $displaygrade->get_formatted_grade(true);
                         }
                     } else {
                         $data['grade']['class'] = $class;
-                        $data['grade']['content'] = grade_format_gradevalue($gradeval,
-                                                                            $grade_grade->grade_item,
-                                                                            true);
+                        $data['grade']['content'] = $displaygrade->get_formatted_grade(true);
                     }
                     $data['grade']['headers'] = "$header_cat $header_row grade";
                 }
@@ -550,56 +530,57 @@ class grade_report_user extends grade_report {
                 // Range
                 if ($this->showrange) {
                     $data['range']['class'] = $class;
-                    $data['range']['content'] = $grade_grade->grade_item->get_formatted_range(GRADE_DISPLAY_TYPE_REAL, $this->rangedecimals);
+                    $data['range']['content'] = $displaygrade->get_formatted_range(GRADE_DISPLAY_TYPE_REAL, $this->rangedecimals);
                     $data['range']['headers'] = "$header_cat $header_row range";
                 }
 
                 // Percentage
                 if ($this->showpercentage) {
-                    if ($grade_grade->grade_item->needsupdate) {
+                    if ($displaygrade->grade_item->needsupdate) {
                         $data['percentage']['class'] = $class.' gradingerror';
                         $data['percentage']['content'] = get_string('error');
-                    } else if ($grade_grade->is_hidden()) {
+                    } else if ($displaygrade->is_hidden()) {
                         $data['percentage']['class'] = $class.' dimmed_text';
                         $data['percentage']['content'] = '-';
                         if ($this->canviewhidden) {
-                            $data['percentage']['content'] = grade_format_gradevalue($gradeval, $grade_grade->grade_item, true, GRADE_DISPLAY_TYPE_PERCENTAGE);
+                            $data['percentage']['content'] = $displaygrade->get_formatted_grade(true,
+                                                                                                GRADE_DISPLAY_TYPE_PERCENTAGE);
                         }
                     } else {
                         $data['percentage']['class'] = $class;
-                        $data['percentage']['content'] = grade_format_gradevalue($gradeval, $grade_grade->grade_item, true, GRADE_DISPLAY_TYPE_PERCENTAGE);
+                        $data['percentage']['content'] = $displaygrade->get_formatted_grade(true, GRADE_DISPLAY_TYPE_PERCENTAGE);
                     }
                     $data['percentage']['headers'] = "$header_cat $header_row percentage";
                 }
 
                 // Lettergrade
                 if ($this->showlettergrade) {
-                    if ($grade_grade->grade_item->needsupdate) {
+                    if ($displaygrade->grade_item->needsupdate) {
                         $data['lettergrade']['class'] = $class.' gradingerror';
                         $data['lettergrade']['content'] = get_string('error');
-                    } else if ($grade_grade->is_hidden()) {
+                    } else if ($displaygrade->is_hidden()) {
                         $data['lettergrade']['class'] = $class.' dimmed_text';
                         if (!$this->canviewhidden) {
                             $data['lettergrade']['content'] = '-';
                         } else {
-                            $data['lettergrade']['content'] = grade_format_gradevalue($gradeval, $grade_grade->grade_item, true, GRADE_DISPLAY_TYPE_LETTER);
+                            $data['lettergrade']['content'] = $displaygrade->get_formatted_letter(true);
                         }
                     } else {
                         $data['lettergrade']['class'] = $class;
-                        $data['lettergrade']['content'] = grade_format_gradevalue($gradeval, $grade_grade->grade_item, true, GRADE_DISPLAY_TYPE_LETTER);
+                        $data['lettergrade']['content'] = $displaygrade->get_formatted_letter(true);
                     }
                     $data['lettergrade']['headers'] = "$header_cat $header_row lettergrade";
                 }
 
                 // Rank
                 if ($this->showrank) {
-                    if ($grade_grade->grade_item->needsupdate) {
+                    if ($displaygrade->grade_item->needsupdate) {
                         $data['rank']['class'] = $class.' gradingerror';
                         $data['rank']['content'] = get_string('error');
-                        } elseif ($grade_grade->is_hidden()) {
+                        } elseif ($displaygrade->is_hidden()) {
                             $data['rank']['class'] = $class.' dimmed_text';
                             $data['rank']['content'] = '-';
-                    } else if (is_null($gradeval)) {
+                    } else if (is_null($displaygrade->finalgrade)) {
                         // no grade, no rank
                         $data['rank']['class'] = $class;
                         $data['rank']['content'] = '-';
@@ -611,7 +592,7 @@ class grade_report_user extends grade_report {
                                  WHERE finalgrade > ?
                                        AND itemid = ?
                                        AND hidden = 0";
-                        $rank = $DB->count_records_sql($sql, array($grade_grade->finalgrade, $grade_grade->grade_item->id)) + 1;
+                        $rank = $DB->count_records_sql($sql, array($displaygrade->finalgrade, $displaygrade->grade_item->id)) + 1;
 
                         $data['rank']['class'] = $class;
                         $data['rank']['content'] = "$rank/".$this->get_numusers(false); // total course users
@@ -632,15 +613,16 @@ class grade_report_user extends grade_report {
 
                 // Feedback
                 if ($this->showfeedback) {
-                    if ($grade_grade->overridden > 0 AND ($type == 'categoryitem' OR $type == 'courseitem')) {
-                    $data['feedback']['class'] = $classfeedback.' feedbacktext';
-                        $data['feedback']['content'] = get_string('overridden', 'grades').': ' . format_text($grade_grade->feedback, $grade_grade->feedbackformat);
-                    } else if (empty($grade_grade->feedback) or (!$this->canviewhidden and $grade_grade->is_hidden())) {
+                    if ($displaygrade->overridden > 0 AND ($type == 'categoryitem' OR $type == 'courseitem')) {
+                        $data['feedback']['class'] = $classfeedback.' feedbacktext';
+                        $data['feedback']['content'] = get_string('overridden', 'grades').': '.
+                                format_text($displaygrade->feedback, $grade_grade->feedbackformat);
+                    } else if (empty($displaygrade->feedback) or (!$this->canviewhidden and $displaygrade->is_hidden())) {
                         $data['feedback']['class'] = $classfeedback.' feedbacktext';
                         $data['feedback']['content'] = '&nbsp;';
                     } else {
                         $data['feedback']['class'] = $classfeedback.' feedbacktext';
-                        $data['feedback']['content'] = format_text($grade_grade->feedback, $grade_grade->feedbackformat);
+                        $data['feedback']['content'] = format_text($displaygrade->feedback, $displaygrade->feedbackformat);
                     }
                     $data['feedback']['headers'] = "$header_cat $header_row feedback";
                 }
@@ -654,15 +636,15 @@ class grade_report_user extends grade_report {
             }
             // We collect the aggregation hints whether they are hidden or not.
             if ($this->showcontributiontocoursetotal) {
-                $hint['grademax'] = $grade_grade->grade_item->grademax;
-                $hint['grademin'] = $grade_grade->grade_item->grademin;
-                $hint['grade'] = $gradeval;
+                $hint['grademax'] = $displaygrade->get_grade_max();
+                $hint['grademin'] = $displaygrade->get_grade_min();
+                $hint['grade'] = $displaygrade->finalgrade;
                 $parent = $grade_object->load_parent_category();
                 if ($grade_object->is_category_item()) {
                     $parent = $parent->load_parent_category();
                 }
                 $hint['parent'] = $parent->load_grade_item()->id;
-                $this->aggregationhints[$grade_grade->itemid] = $hint;
+                $this->aggregationhints[$displaygrade->itemid] = $hint;
             }
         }
 
@@ -1001,7 +983,8 @@ class grade_report_user extends grade_report {
                 } else {
                     $sum = $sum_array[$item->id];
                     $avgradeval = $sum/$mean_count;
-                    $gradehtml = grade_format_gradevalue($avgradeval, $item, true, $displaytype, $decimalpoints);
+                    $avggrade = grade_display_grade::create_temp_grade($avgradeval, $item);
+                    $gradehtml = $avggrade->get_formatted_grade(true, $displaytype, $decimalpoints);
 
                     $numberofgrades = '';
                     if ($shownumberofgrades) {

@@ -76,7 +76,7 @@ function grade_get_course_grades($courseid, $userid_or_ids=null) {
     }
 
     if ($userids) {
-        $grade_grades = grade_grade::fetch_users_grades($grade_item, $userids, true);
+        $grade_grades = grade_display_grade::fetch_users_grades($grade_item, $userids, true);
         foreach ($userids as $userid) {
             $grade_grades[$userid]->grade_item =& $grade_item;
 
@@ -102,13 +102,13 @@ function grade_get_course_grades($courseid, $userid_or_ids=null) {
                 $grade->str_long_grade = $grade->str_grade;
 
             } else {
-                $grade->str_grade = grade_format_gradevalue($grade->grade, $grade_item);
+                $grade->str_grade = $grade_grades[$userid]->get_formatted_grade();
                 if ($grade_item->gradetype == GRADE_TYPE_SCALE or $grade_item->get_displaytype() != GRADE_DISPLAY_TYPE_REAL) {
                     $grade->str_long_grade = $grade->str_grade;
                 } else {
                     $a = new stdClass();
                     $a->grade = $grade->str_grade;
-                    $a->max   = grade_format_gradevalue($grade_item->grademax, $grade_item);
+                    $a->max = grade_display_grade::get_formatted_temp_grade($grade_item->grademax, $grade_item);
                     $grade->str_long_grade = get_string('gradelong', 'grades', $a);
                 }
             }
@@ -191,7 +191,7 @@ function grade_get_course_grade($userid, $courseid_or_ids=null) {
                 $item->gradepass  = 0;
                 break;
         }
-        $grade_grade = new grade_grade(array('userid'=>$userid, 'itemid'=>$grade_item->id));
+        $grade_grade = new grade_display_grade(array('userid' => $userid, 'itemid' => $grade_item->id));
         $grade_grade->grade_item =& $grade_item;
 
         $grade = new stdClass();
@@ -216,13 +216,13 @@ function grade_get_course_grade($userid, $courseid_or_ids=null) {
             $grade->str_long_grade = $grade->str_grade;
 
         } else {
-            $grade->str_grade = grade_format_gradevalue($grade->grade, $grade_item);
+            $grade->str_grade = $grade_grade->get_formatted_grade();
             if ($grade_item->gradetype == GRADE_TYPE_SCALE or $grade_item->get_displaytype() != GRADE_DISPLAY_TYPE_REAL) {
                 $grade->str_long_grade = $grade->str_grade;
             } else {
                 $a = new stdClass();
                 $a->grade = $grade->str_grade;
-                $a->max   = grade_format_gradevalue($grade_item->grademax, $grade_item);
+                $a->max = grade_display_grade::get_formatted_temp_grade($grade_item->grademax, $grade_item);
                 $grade->str_long_grade = get_string('gradelong', 'grades', $a);
             }
         }

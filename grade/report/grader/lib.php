@@ -1092,8 +1092,14 @@ class grade_report_grader extends grade_report {
                             $item->grademin = $grade->get_grade_min();
                         }
 
-                        $itemcell->text .= "<span class='gradevalue{$hidden}{$gradepass}'>" .
-                                grade_format_gradevalue($gradeval, $item, true, $gradedisplaytype, null) . "</span>";
+                        $itemcell->text .= "<span class='gradevalue{$hidden}{$gradepass}'>";
+                        $itemcell->text .= grade_display_grade::get_formatted_temp_grade($gradeval,
+                                                                                         $item,
+                                                                                         true,
+                                                                                         $gradedisplaytype,
+                                                                                         null);
+                        $itemcell->text .= "</span>";
+
                         if ($showanalysisicon) {
                             $itemcell->text .= $this->gtree->get_grade_analysis_icon($grade);
                         }
@@ -1496,7 +1502,11 @@ class grade_report_grader extends grade_report {
                 } else {
                     $sum = $sumarray[$item->id];
                     $avgradeval = $sum/$meancount;
-                    $gradehtml = grade_format_gradevalue($avgradeval, $item, true, $displaytype, $decimalpoints);
+                    $gradehtml = grade_display_grade::get_formatted_temp_grade($avgradeval,
+                                                                               $item,
+                                                                               true,
+                                                                               $displaytype,
+                                                                               $decimalpoints);
 
                     $numberofgrades = '';
                     if ($shownumberofgrades) {
