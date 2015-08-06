@@ -7849,6 +7849,30 @@ function format_float($float, $decimalpoints=1, $localized=true, $stripzeros=fal
 }
 
 /**
+ * Given a percentage, prints it nicely.
+ * Localized percentage must not be used in calculations!
+ *
+ * The stripzeros feature is intended for making numbers look nicer in small
+ * areas where it is not necessary to indicate the degree of accuracy by showing
+ * ending zeros. If you turn it on with $decimalpoints set to 3, for example,
+ * then it will display '5.4' instead of '5.400' or '5' instead of '5.000'.
+ *
+ * @since Moodle 2.8.8, 2.9.2
+ * @param float $percent The percent to print
+ * @param int $decimalpoints The number of decimal places to print.
+ * @param bool $localized use localized decimal separator
+ * @param bool $stripzeros If true, removes final zeros after decimal point
+ * @return string Properly formatted percentage
+ */
+function format_percentage($percent, $decimalpoints=1, $localized=true, $stripzeros=false) {
+    if (is_null($percent)) {
+        return '';
+    }
+
+    return format_float($percent, $decimalpoints, $localized, $stripzeros) . ' %';
+}
+
+/**
  * Converts locale specific floating point/comma number back to standard PHP float value
  * Do NOT try to do any math operations before this conversion on any user submitted floats!
  *

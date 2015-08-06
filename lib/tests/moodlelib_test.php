@@ -1795,6 +1795,37 @@ class core_moodlelib_testcase extends advanced_testcase {
     }
 
     /**
+     * Test localised percentage formatting.
+     */
+    public function test_format_percentage() {
+
+        // Special case for null.
+        $this->assertEquals('', format_percentage(null));
+
+        // Default 1 decimal place.
+        $this->assertEquals('5.4 %', format_percentage(5.43));
+        $this->assertEquals('5.0 %', format_percentage(5.001));
+
+        // Custom number of decimal places.
+        $this->assertEquals('5.43000 %', format_percentage(5.43, 5));
+
+        // Option to strip ending zeros after rounding.
+        $this->assertEquals('5.43 %', format_percentage(5.43, 5, true, true));
+        $this->assertEquals('5 %', format_percentage(5.0001, 3, true, true));
+
+        // Tests with a localised decimal separator.
+        $this->define_local_decimal_separator();
+
+        // Localisation on (default).
+        $this->assertEquals('5X43000 %', format_percentage(5.43, 5));
+        $this->assertEquals('5X43 %', format_percentage(5.43, 5, true, true));
+
+        // Localisation off.
+        $this->assertEquals('5.43000 %', format_percentage(5.43, 5, false));
+        $this->assertEquals('5.43 %', format_percentage(5.43, 5, false, true));
+    }
+
+    /**
      * Test localised float unformatting.
      */
     public function test_unformat_float() {

@@ -389,6 +389,7 @@ class grade_display_grade extends grade_grade {
             // We don't know what to do with this type.
             return '';
         }
+
         if (is_null($displaytype)) {
             // Load default display type.
             $displaytype = $gradeitem->get_displaytype();
@@ -493,7 +494,7 @@ class grade_display_grade extends grade_grade {
         if ($percentage === false) {
             return '';
         }
-        return format_float($percentage, $decimals, $localized).' %';
+        return format_percentage($percentage, $decimals, $localized);
     }
 
     /**

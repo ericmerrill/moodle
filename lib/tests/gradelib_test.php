@@ -56,4 +56,16 @@ class core_gradelib_testcase extends advanced_testcase {
 
         $this->assertTrue(grade_update_mod_grades($modinstance));
     }
+
+    public function test_grade_get_percentage() {
+        // Simple percentage math.
+        $this->assertEquals(50.000, grade_get_percentage(50, 0, 100));
+        $this->assertEquals(10.000, grade_get_percentage(10, 0, 100));
+
+        // The more complicated non-zero minimums.
+        $this->assertEquals(0.000, grade_get_percentage(5, 5, 55));
+        $this->assertEquals(90.000, grade_get_percentage(50, 5, 55));
+        $this->assertEquals(-10.000, grade_get_percentage(0, 5, 55));
+        $this->assertEquals(120.000, grade_get_percentage(65, 5, 55));
+    }
 }

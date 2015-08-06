@@ -648,6 +648,19 @@ function grade_set_setting($courseid, $name, $value) {
 }
 
 /**
+ * Compute a percentage in the Moodle standard way.
+ *
+ * @since Moodle 2.8.8, 2.9.2
+ * @param float $value The value to convert
+ * @param float $min The minimum possible value
+ * @param float $max The maximum possible value
+ * @return float The computed percentage
+ */
+function grade_get_percentage($value, $min, $max) {
+    return (($value-$min) * 100) / ($max - $min);
+}
+
+/**
  * Returns grade options for gradebook grade category menu
  *
  * @param int $courseid The course ID
