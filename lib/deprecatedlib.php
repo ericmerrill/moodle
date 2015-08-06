@@ -2411,11 +2411,10 @@ function grade_format_gradevalue($value, &$gradeitem, $localized=true, $displayt
  * @return string
  */
 function grade_format_gradevalue_real($value, $gradeitem, $decimals, $localized) {
-    debugging('grade_format_gradevalue_real() is deprecated. Please use grade_display_grade::get_formatted_real() instead.',
+    debugging('grade_format_gradevalue_real() is deprecated. Please use grade_display_grade::get_formatted_grade() instead.',
             DEBUG_DEVELOPER);
 
-    $displaygrade = grade_display_grade::create_temp_grade($value, $gradeitem);
-    return $displaygrade->get_formatted_real($localized, $decimals);
+    return grade_display_grade::get_formatted_temp_grade($value, $gradeitem, $localized, GRADE_DISPLAY_TYPE_REAL, $decimals);
 }
 
 /**
@@ -2430,11 +2429,10 @@ function grade_format_gradevalue_real($value, $gradeitem, $decimals, $localized)
  * @return string
  */
 function grade_format_gradevalue_percentage($value, $gradeitem, $decimals, $localized) {
-    debugging('grade_format_gradevalue_percentage() is deprecated. '.
-            'Please use grade_display_grade::get_formatted_percentage() instead.', DEBUG_DEVELOPER);
+    debugging('grade_format_gradevalue_percentage() is deprecated. Please use grade_display_grade::get_formatted_grade() instead.',
+            DEBUG_DEVELOPER);
 
-    $displaygrade = grade_display_grade::create_temp_grade($value, $gradeitem);
-    return $displaygrade->get_formatted_percentage($localized, $decimals);
+    return grade_display_grade::get_formatted_temp_grade($value, $gradeitem, $localized, GRADE_DISPLAY_TYPE_PERCENTAGE, $decimals);
 }
 
 /**
@@ -2448,9 +2446,8 @@ function grade_format_gradevalue_percentage($value, $gradeitem, $decimals, $loca
  * @return string
  */
 function grade_format_gradevalue_letter($value, $gradeitem) {
-    debugging('grade_format_gradevalue_letter() is deprecated. Please use grade_display_grade::get_formatted_letter() instead.',
+    debugging('grade_format_gradevalue_letter() is deprecated. Please use grade_display_grade::get_formatted_grade() instead.',
             DEBUG_DEVELOPER);
 
-    $displaygrade = grade_display_grade::create_temp_grade($value, $gradeitem);
-    return $displaygrade->get_formatted_letter($localized, $decimals);
+    return grade_display_grade::get_formatted_temp_grade($value, $gradeitem, $localized, GRADE_DISPLAY_TYPE_LETTER);
 }

@@ -40,15 +40,34 @@ class grade_display_grade extends grade_grade {
     private $viewhidden = false;
 
     // TODO - error on needsupdate?
-    // TODO - work without grade_item?
+
+    /**
+     * Finds and returns a grade_grade instance based on params.
+     *
+     * @param array $params associative arrays varname=>value
+     * @return grade_grade Returns a grade_grade instance or false if none found
+     */
+    public static function fetch($params) {
+        return grade_object::fetch_helper('grade_grades', 'grade_display_grade', $params);
+    }
+
+    /**
+     * Finds and returns all grade_grade instances based on params.
+     *
+     * @param array $params associative arrays varname=>value
+     * @return array array of grade_grade instances or false if none found.
+     */
+    public static function fetch_all($params) {
+        return grade_object::fetch_all_helper('grade_grades', 'grade_display_grade', $params);
+    }
 
     /**
      * Returns all grade_display_grades for a user in a course.
      *
      * @param int $userid Userid of user to lookup
      * @param int $courseid Courseid of course to lookup
-     * @param null|int $displaymode Display mode to use {@see compute_display_grades()}
-     * @param bool $viewhidden Wether the user is allowed to view hidden values {@see compute_display_grades()}
+     * @param null|int $displaymode Display mode to use {@see compute_display_grade()}
+     * @param bool $viewhidden Wether the user is allowed to view hidden values {@see compute_display_grade()}
      * @return array|false Array of grade_display_grade instances indexed by itemid, or false if none found
      */
     public static function fetch_user_course_grades($userid, $courseid, $displaymode = null, $viewhidden = true) {
@@ -92,6 +111,18 @@ class grade_display_grade extends grade_grade {
         return $grade;
     }
 
+    /**
+     * Create a "fake" grade for display that does not come from the database.
+     *
+     * @param float $finalgrade A grade value to work with
+     * @param object $gradeitem The grade item to reference
+     * @param bool $localized use localised decimal separator
+     * @param int $displaytype type of display. For example GRADE_DISPLAY_TYPE_REAL
+     *                                                      GRADE_DISPLAY_TYPE_PERCENTAGE
+     *                                                      GRADE_DISPLAY_TYPE_LETTER
+     * @param int $decimals The number of decimal places when displaying float values
+     * @return string
+     */
     public static function get_formatted_temp_grade($finalgrade, $gradeitem, $localized=true, $displaytype=null, $decimals=null) {
         $grade = self::create_temp_grade($finalgrade, $gradeitem);
 
@@ -110,7 +141,6 @@ class grade_display_grade extends grade_grade {
      * @return string
      */
     public static function get_formatted_grade_grade($gradegrade, $localized=true, $displaytype=null, $decimals=null) {
-        // TODO input checking.
         $displaygrade = new static($gradegrade, false);
 
         return $displaygrade->get_formatted_grade($localized, $displaytype, $decimals);
@@ -121,13 +151,13 @@ class grade_display_grade extends grade_grade {
      *
      * @param array $params An array with required parameters for this object {@see grade_object::__construct()}
      * @param bool $fetch Wether or not to attempt to fetch record out of the db {@see grade_object::__construct()}
-     * @param null|int $displaymode Display mode to use {@see compute_display_grades()}
-     * @param bool $viewhidden Wether the user is allowed to view hidden values {@see compute_display_grades()}
+     * @param null|int $displaymode Display mode to use {@see compute_display_grade()}
+     * @param bool $viewhidden Wether the user is allowed to view hidden values {@see compute_display_grade()}
      */
     public function __construct($params=null, $fetch=true, $displaymode = null, $viewhidden = true) {
         parent::__construct($params, $fetch);
 
-        $this->compute_display_grades($displaymode, $viewhidden);
+        $this->compute_display_grade($displaymode, $viewhidden);
     }
 
     /**
@@ -139,7 +169,7 @@ class grade_display_grade extends grade_grade {
      *                 If null, no changes will be done.
      * @param bool $viewhidden Wether the user is allowed to view hidden values
      */
-    public function compute_display_grades($displaymode = null, $viewhidden = true) {
+    public function compute_display_grade($displaymode = null, $viewhidden = true) {
         global $DB;
 
         if (!$this->itemid) {
@@ -280,7 +310,6 @@ class grade_display_grade extends grade_grade {
                 if ($displaymode == GRADE_REPORT_HIDE_TOTAL_IF_CONTAINS_HIDDEN) {
                     // If the course total is hidden we must hide the weight otherwise
                     // it can be used to compute the course total.
-                    // TODO - does this make sense here?
                     $this->aggregationstatus = 'unknown';
                     $this->aggregationweight = null;
                 }
@@ -312,26 +341,6 @@ class grade_display_grade extends grade_grade {
     }
 
     /**
-     * Finds and returns a grade_grade instance based on params.
-     *
-     * @param array $params associative arrays varname=>value
-     * @return grade_grade Returns a grade_grade instance or false if none found
-     */
-    public static function fetch($params) {
-        return grade_object::fetch_helper('grade_grades', 'grade_display_grade', $params);
-    }
-
-    /**
-     * Finds and returns all grade_grade instances based on params.
-     *
-     * @param array $params associative arrays varname=>value
-     * @return array array of grade_grade instances or false if none found.
-     */
-    public static function fetch_all($params) {
-        return grade_object::fetch_all_helper('grade_grades', 'grade_display_grade', $params);
-    }
-
-    /**
      * Blocks a DB operation from being done with a display object.
      *
      * @param string $source from where was the object inserted (mod/forum, manual, etc.)
@@ -351,7 +360,9 @@ class grade_display_grade extends grade_grade {
      * @return bool Returns true if the deletion was successful, false otherwise.
      */
     public function delete($source = null) {
+        // Because this is a modified version of grade_grade, meant for display, we should not allow DB mods from here.
         debugging('class grade_display_grade does not support delete.', DEBUG_DEVELOPER);
+
         return false;
     }
 
@@ -486,7 +497,7 @@ class grade_display_grade extends grade_grade {
      * @param bool $localized use localised decimal separator
      * @return string
      */
-    public function get_formatted_percentage($decimals, $localized = true) {
+    protected function get_formatted_percentage($decimals, $localized = true) {
         $percentage = $this->get_percentage();
         if (is_null($percentage)) {
             return '-';
@@ -504,7 +515,7 @@ class grade_display_grade extends grade_grade {
      * @param bool $localized use localised decimal separator
      * @return string
      */
-    public function get_formatted_real($decimals, $localized = true) {
+    protected function get_formatted_real($decimals, $localized = true) {
         $this->load_grade_item();
         $value = $this->finalgrade;
         if (is_null($value)) {
@@ -527,7 +538,7 @@ class grade_display_grade extends grade_grade {
      *
      * @return string
      */
-    public function get_formatted_letter() {
+    protected function get_formatted_letter() {
         $this->load_grade_item();
         $context = context_course::instance($this->grade_item->courseid, IGNORE_MISSING);
         if (!$letters = grade_get_letters($context)) {

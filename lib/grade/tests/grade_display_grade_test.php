@@ -31,6 +31,52 @@ require_once(__DIR__.'/fixtures/lib.php');
 
 class core_grade_display_grade_testcase extends grade_base_testcase {
 
+    public function test_fetch() {
 
+    }
+
+    public function test_fetch_all() {
+
+    }
+
+    public function test_fetch_user_course_grades() {
+
+    }
+
+    public function test_create_temp_grade() {
+
+    }
+
+    public function test_get_formatted_temp_grade() {
+
+    }
+
+    public function test_get_formatted_grade_grade() {
+
+    }
+
+    public function test_construct() {
+
+    }
+
+    public function test_compute_display_grade() {
+
+    }
+
+    public function test_update() {
+
+    }
+
+    public function test_delete() {
+
+    }
+
+    public function test_get_grade_min_and_max() {
+
+    }
+
+    public function test_get_formatted_grade() {
+
+    }
 
 }
