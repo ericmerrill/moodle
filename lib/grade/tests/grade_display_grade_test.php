@@ -89,9 +89,16 @@ class core_grade_display_grade_testcase extends grade_base_testcase {
     }
 
     protected function sub_test_get_grade_min_and_max() {
-        global $CFG;
+        global $CFG, $DB;
 
+        $gi = clone $this->grade_items[0];
+        unset($gi->id);
+        $gi->grademin = 0;
+        $gi->grademax = 100;
+        $gi->id = $DB->insert_record('grade_items', $gi);
 
+        $user = $this->user[0];
+        $gg = grade_grade::fetch(array('userid' => $user->id, 'itemid' => $gi->id));
     }
 
     public function test_get_formatted_grade() {
