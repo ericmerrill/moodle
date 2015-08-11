@@ -31,12 +31,27 @@ require_once(__DIR__.'/fixtures/lib.php');
 
 class core_grade_display_grade_testcase extends grade_base_testcase {
 
-    public function test_fetch() {
+    public function test_grade_display_grade() {
+        $this->setUp();
+        $this->sub_test_fetch();
+        $this->sub_test_fetch_all();
 
+        $this->sub_test_update_delete();
+        $this->sub_test_get_grade_min_and_max();
     }
 
-    public function test_fetch_all() {
+    protected function sub_test_fetch() {
+        $grade = grade_display_grade::fetch(array('id' => $this->grade_grades[0]->id));
 
+        $this->assertInstanceOf('grade_display_grade', $grade);
+    }
+
+    protected function sub_test_fetch_all() {
+        $grades = grade_display_grade::fetch_all(array('itemid' => $this->grade_items[0]->id));
+
+        foreach ($grades as $grade) {
+            $this->assertInstanceOf('grade_display_grade', $grade);
+        }
     }
 
     public function test_fetch_user_course_grades() {
@@ -63,15 +78,19 @@ class core_grade_display_grade_testcase extends grade_base_testcase {
 
     }
 
-    public function test_update() {
+    protected function sub_test_update_delete() {
+        $grade = grade_display_grade::fetch(array('id' => $this->grade_grades[0]->id));
 
+        $this->assertFalse($grade->update());
+        $this->assertDebuggingCalled();
+
+        $this->assertFalse($grade->delete());
+        $this->assertDebuggingCalled();
     }
 
-    public function test_delete() {
+    protected function sub_test_get_grade_min_and_max() {
+        global $CFG;
 
-    }
-
-    public function test_get_grade_min_and_max() {
 
     }
 
