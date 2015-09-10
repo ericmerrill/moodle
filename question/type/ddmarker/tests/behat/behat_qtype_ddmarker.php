@@ -71,7 +71,6 @@ class behat_qtype_ddmarker extends behat_base {
         // DOM node so that its centre is over the centre of anothe DOM node.
         // Therefore to make it drag to the specified place, we have to add
         // a target div.
-        $style = 
         $session = $this->getSession();
         $session->evaluateScript("
                 (function() {

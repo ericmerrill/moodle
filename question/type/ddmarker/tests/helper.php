@@ -152,12 +152,14 @@ class qtype_ddmarker_test_helper extends question_test_helper {
 
         $fromform->name = 'Milton Keynes landmarks';
         $fromform->questiontext = array(
-            'text' => 'Please place the markers on the map of Milton Keynes and be aware that there is more than one railway station.',
+            'text' => 'Please place the markers on the map of Milton Keynes and be '.
+                      'aware that there is more than one railway station.',
             'format' => FORMAT_HTML,
         );
         $fromform->defaultmark = 1;
         $fromform->generalfeedback = array(
-            'text' => 'The Open University is at the junction of Brickhill Street and Groveway. There are three railway stations, Wolverton, Milton Keynes Central and Bletchley.',
+            'text' => 'The Open University is at the junction of Brickhill Street and Groveway. '.
+                      'There are three railway stations, Wolverton, Milton Keynes Central and Bletchley.',
             'format' => FORMAT_HTML,
         );
         $fromform->bgimage = $bgdraftitemid;
@@ -177,7 +179,7 @@ class qtype_ddmarker_test_helper extends question_test_helper {
 
         test_question_maker::set_standard_combined_feedback_form_data($fromform);
 
-        $fromform->penalty ='0.3333333';
+        $fromform->penalty = '0.3333333';
         $fromform->hint = array(
             array(
                 'text' => 'You are trying to place four markers on the map.',

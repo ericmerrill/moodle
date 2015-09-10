@@ -32,7 +32,9 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class qtype_gapselect_edit_form_base extends question_edit_form {
-    /** @var int maximum number of different groups of drag items there can be in a question. */
+    /**
+     * Maximum number of different groups of drag items there can be in a question.
+     */
     const MAX_GROUPS = 8;
 
     /** @var array of HTML tags allowed in choices / drag boxes. */

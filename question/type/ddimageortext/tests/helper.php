@@ -152,12 +152,15 @@ class qtype_ddimageortext_test_helper extends question_test_helper {
         $fromform->name = 'Geography cross-section';
         $fromform->questiontext = array(
             'text' => '<p>Identify the features in this cross-section by dragging the labels into the boxes.</p>
-                       <p><em>Use the mouse to drag the boxed words into the empty boxes. Alternatively, use the tab key to select an empty box, then use the space key to cycle through the options.</em></p>',
+                       <p><em>Use the mouse to drag the boxed words into the empty boxes. '.
+                      'Alternatively, use the tab key to select an empty box, '.
+                      'then use the space key to cycle through the options.</em></p>',
             'format' => FORMAT_HTML,
         );
         $fromform->defaultmark = 1;
         $fromform->generalfeedback = array(
-            'text' => '<p>More information about the major features of the Earth\'s surface can be found in Block 3, Section 6.2.</p>',
+            'text' => '<p>More information about the major features of the Earth\'s surface '.
+                      'can be found in Block 3, Section 6.2.</p>',
             'format' => FORMAT_HTML,
         );
         $fromform->bgimage = $bgdraftitemid;
@@ -197,42 +200,41 @@ class qtype_ddimageortext_test_helper extends question_test_helper {
 
         test_question_maker::set_standard_combined_feedback_form_data($fromform);
 
-        $fromform->penalty ='0.3333333';
-        $fromform->hint = array(
-            array(
-                'text' => '<p>Incorrect placements will be removed.</p>',
-                'format' => FORMAT_HTML,
-            ),
-            array(
-                'text' => '<ul>
-                           <li>The abyssal plain is a flat almost featureless expanse of ocean floor 4km to 6km below sea-level.</li>
-                           <li>The continental rise is the gently sloping part of the ocean floor beyond the continental slope.</li>
-                           <li>The continental shelf is the gently sloping ocean floor just offshore from the land.</li>
-                           <li>The continental slope is the relatively steep part of the ocean floor beyond the continental shelf.</li>
-                           <li>A mid-ocean ridge is a broad submarine ridge several kilometres high.</li>
-                           <li>A mountain belt is a long range of mountains.</li>
-                           <li>An island arc is a chain of volcanic islands.</li>
-                           <li>An oceanic trench is a deep trough in the ocean floor.</li>
-                           </ul>',
-                'format' => FORMAT_HTML,
-            ),
-            array(
-                'text' => '<p>Incorrect placements will be removed.</p>',
-                'format' => FORMAT_HTML,
-            ),
-            array(
-                'text' => '<ul>
-                           <li>The abyssal plain is a flat almost featureless expanse of ocean floor 4km to 6km below sea-level.</li>
-                           <li>The continental rise is the gently sloping part of the ocean floor beyond the continental slope.</li>
-                           <li>The continental shelf is the gently sloping ocean floor just offshore from the land.</li>
-                           <li>The continental slope is the relatively steep part of the ocean floor beyond the continental shelf.</li>
-                           <li>A mid-ocean ridge is a broad submarine ridge several kilometres high.</li>
-                           <li>A mountain belt is a long range of mountains.</li>
-                           <li>An island arc is a chain of volcanic islands.</li>
-                           <li>An oceanic trench is a deep trough in the ocean floor.</li>
-                           </ul>',
-                'format' => FORMAT_HTML,
-            ),
+        $fromform->penalty = '0.3333333';
+        $fromform->hint = array();
+        $fromform->hint[] = array(
+            'text' => '<p>Incorrect placements will be removed.</p>',
+            'format' => FORMAT_HTML,
+        );
+        $fromform->hint[] = array(
+            'text' => '<ul>
+                       <li>The abyssal plain is a flat almost featureless expanse of ocean floor 4km to 6km below sea-level.</li>
+                       <li>The continental rise is the gently sloping part of the ocean floor beyond the continental slope.</li>
+                       <li>The continental shelf is the gently sloping ocean floor just offshore from the land.</li>
+                       <li>The continental slope is the relatively steep part of the ocean floor beyond the continental shelf.</li>
+                       <li>A mid-ocean ridge is a broad submarine ridge several kilometres high.</li>
+                       <li>A mountain belt is a long range of mountains.</li>
+                       <li>An island arc is a chain of volcanic islands.</li>
+                       <li>An oceanic trench is a deep trough in the ocean floor.</li>
+                       </ul>',
+            'format' => FORMAT_HTML,
+        );
+        $fromform->hint[] = array(
+            'text' => '<p>Incorrect placements will be removed.</p>',
+            'format' => FORMAT_HTML,
+        );
+        $fromform->hint[] = array(
+            'text' => '<ul>
+                       <li>The abyssal plain is a flat almost featureless expanse of ocean floor 4km to 6km below sea-level.</li>
+                       <li>The continental rise is the gently sloping part of the ocean floor beyond the continental slope.</li>
+                       <li>The continental shelf is the gently sloping ocean floor just offshore from the land.</li>
+                       <li>The continental slope is the relatively steep part of the ocean floor beyond the continental shelf.</li>
+                       <li>A mid-ocean ridge is a broad submarine ridge several kilometres high.</li>
+                       <li>A mountain belt is a long range of mountains.</li>
+                       <li>An island arc is a chain of volcanic islands.</li>
+                       <li>An oceanic trench is a deep trough in the ocean floor.</li>
+                       </ul>',
+            'format' => FORMAT_HTML,
         );
         $fromform->hintclearwrong = array(1, 0, 1, 0);
         $fromform->hintshownumcorrect = array(1, 1, 1, 1);

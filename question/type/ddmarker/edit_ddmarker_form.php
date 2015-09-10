@@ -39,11 +39,20 @@ define('QTYPE_DDMARKER_ALLOWED_TAGS_IN_MARKER', '<br><i><em><b><strong><sup><sub
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class qtype_ddmarker_edit_form extends qtype_ddtoimage_edit_form_base {
-
+    /**
+     * Returns the name of the qtype.
+     *
+     * @return string
+     */
     public function qtype() {
         return 'ddmarker';
     }
 
+    /**
+     * Add any question-type specific form fields.
+     *
+     * @param object $mform the form being built.
+     */
     protected function definition_inner($mform) {
         $mform->addElement('advcheckbox', 'showmisplaced', ' ',
                                                 get_string('showmisplaced', 'qtype_ddmarker'));
@@ -52,6 +61,9 @@ class qtype_ddmarker_edit_form extends qtype_ddtoimage_edit_form_base {
         $mform->addHelpButton('drops[0]', 'dropzones', 'qtype_ddmarker');
     }
 
+    /**
+     * Performce the needed JS setup for this question type.
+     */
     public function js_call() {
         global $PAGE;
         $maxsizes = new stdClass();
@@ -67,6 +79,12 @@ class qtype_ddmarker_edit_form extends qtype_ddtoimage_edit_form_base {
                                         array($params));
     }
 
+    /**
+     * Builds and adds the needed form items for draggable items.
+     *
+     * @param object $mform The Moodle form object.
+     * @param int $itemrepeatsatstart The initial number of repeat elements.
+     */
     protected function definition_draggable_items($mform, $itemrepeatsatstart) {
         $mform->addElement('header', 'draggableitemheader',
                                 get_string('markers', 'qtype_ddmarker'));
@@ -79,6 +97,12 @@ class qtype_ddmarker_edit_form extends qtype_ddtoimage_edit_form_base {
                 get_string('addmoreitems', 'qtype_ddmarker'), true);
     }
 
+    /**
+     * Creates and returns a set of form elements to make a draggable item.
+     *
+     * @param object $mform The Moodle form object.
+     * @return array An array of form elements.
+     */
     protected function draggable_item($mform) {
         $draggableimageitem = array();
 
@@ -98,12 +122,24 @@ class qtype_ddmarker_edit_form extends qtype_ddtoimage_edit_form_base {
         return $draggableimageitem;
     }
 
+    /**
+     * Returns an array of default repeat options.
+     *
+     * @return array
+     */
     protected function draggable_items_repeated_options() {
         $repeatedoptions = array();
         $repeatedoptions['drags[label]']['type'] = PARAM_RAW;
         return $repeatedoptions;
     }
 
+    /**
+     * Returns an array with a drop zone form element.
+     *
+     * @param object $mform The Moodle form object.
+     * @param int $imagerepeats The number of repeat images.
+     * @return array Array with the dropzone element.
+     */
     protected function drop_zone($mform, $imagerepeats) {
         $dropzoneitem = array();
 
@@ -127,12 +163,24 @@ class qtype_ddmarker_edit_form extends qtype_ddtoimage_edit_form_base {
         return array($dropzone);
     }
 
+    /**
+     * Returns an array of default drop zone repeat options.
+     *
+     * @return array
+     */
     protected function drop_zones_repeated_options() {
         $repeatedoptions = array();
         $repeatedoptions['drops[coords]']['type'] = PARAM_RAW;
         return $repeatedoptions;
     }
 
+    /**
+     * Create the form elements required by one hint.
+     *
+     * @param string $withclearwrong whether this quesiton type uses the 'Clear wrong' option on hints.
+     * @param string $withshownumpartscorrect whether this quesiton type uses the 'Show num parts correct' option on hints.
+     * @return array form field elements for one hint.
+     */
     protected function get_hint_fields($withclearwrong = false, $withshownumpartscorrect = false) {
         $mform = $this->_form;
 
@@ -154,6 +202,13 @@ class qtype_ddmarker_edit_form extends qtype_ddtoimage_edit_form_base {
         return array($repeated, $repeatedoptions);
     }
 
+    /**
+     * Perform an preprocessing needed on the data passed to {@link set_data()}
+     * before it is used to initialise the form.
+     *
+     * @param object $question the data being passed to the form.
+     * @return object $question the modified data.
+     */
     public function data_preprocessing($question) {
 
         $question = parent::data_preprocessing($question);
@@ -197,10 +252,14 @@ class qtype_ddmarker_edit_form extends qtype_ddtoimage_edit_form_base {
 
         return $question;
     }
+
     /**
      * Perform the necessary preprocessing for the hint fields.
-     * @param object $question the data being passed to the form.
-     * @return object $question the modified data.
+     *
+     * @param object $question The data being passed to the form.
+     * @param bool $withclearwrong Clear wrong hints.
+     * @param bool $withshownumpartscorrect Show number correct.
+     * @return object The modified data.
      */
     protected function data_preprocessing_hints($question, $withclearwrong = false,
                                                 $withshownumpartscorrect = false) {
@@ -217,6 +276,14 @@ class qtype_ddmarker_edit_form extends qtype_ddtoimage_edit_form_base {
         return $question;
     }
 
+    /**
+     * Does post posting validation checks before.
+     *
+     * @param array $data Array of ("fieldname"=>value) of submitted data.
+     * @param array $files Array of uploaded files "element_name"=>tmp_file_path.
+     * @return array Array "element_name"=>"error_description" if there are errors,
+     *         or an empty array if everything is OK.
+     */
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
         $bgimagesize = $this->get_image_size_in_draft_area($data['bgimage']);
@@ -263,6 +330,12 @@ class qtype_ddmarker_edit_form extends qtype_ddtoimage_edit_form_base {
         return $errors;
     }
 
+    /**
+     * Gets the width and height of a draft image.
+     *
+     * @param int $draftitemid ID of the draft image
+     * @return array Return array of the width and height of the draft image.
+     */
     public function get_image_size_in_draft_area($draftitemid) {
         global $USER;
         $usercontext = context_user::instance($USER->id);

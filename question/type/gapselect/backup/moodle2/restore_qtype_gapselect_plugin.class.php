@@ -54,6 +54,8 @@ class restore_qtype_gapselect_plugin extends restore_qtype_plugin {
 
     /**
      * Process the qtype/gapselect element
+     *
+     * @param array|object gapselect object to work with.
      */
     public function process_gapselect($data) {
         global $DB;
@@ -79,6 +81,8 @@ class restore_qtype_gapselect_plugin extends restore_qtype_plugin {
 
     /**
      * Return the contents of this qtype to be processed by the links decoder
+     *
+     * @return array
      */
     public static function define_decode_contents() {
 

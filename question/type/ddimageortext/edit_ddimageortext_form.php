@@ -35,11 +35,22 @@ require_once($CFG->dirroot . '/question/type/ddimageortext/edit_ddtoimage_form_b
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
-
+    /**
+     * Returns the name of the qtype.
+     *
+     * @return string
+     */
     public function qtype() {
         return 'ddimageortext';
     }
 
+    /**
+     * Perform an preprocessing needed on the data passed to {@link set_data()}
+     * before it is used to initialise the form.
+     *
+     * @param object $question the data being passed to the form.
+     * @return object $question the modified data.
+     */
     public function data_preprocessing($question) {
         $question = parent::data_preprocessing($question);
         $question = $this->data_preprocessing_combined_feedback($question, true);
@@ -106,7 +117,9 @@ class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
         return $question;
     }
 
-
+    /**
+     * Performce the needed JS setup for this question type.
+     */
     public function js_call() {
         global $PAGE;
         $maxsizes = new stdClass();
@@ -125,8 +138,12 @@ class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
                                         array($params));
     }
 
-    // Drag items.
-
+    /**
+     * Builds and adds the needed form items for draggable items.
+     *
+     * @param object $mform The Moodle form object.
+     * @param int $itemrepeatsatstart The initial number of repeat elements.
+     */
     protected function definition_draggable_items($mform, $itemrepeatsatstart) {
         $mform->addElement('header', 'draggableitemheader',
                                 get_string('draggableitems', 'qtype_ddimageortext'));
@@ -139,6 +156,12 @@ class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
                 get_string('addmoreimages', 'qtype_ddimageortext'), true);
     }
 
+    /**
+     * Creates and returns a set of form elements to make a draggable item.
+     *
+     * @param object $mform The Moodle form object.
+     * @return array An array of form elements.
+     */
     protected function draggable_item($mform) {
         $draggableimageitem = array();
 
@@ -172,14 +195,24 @@ class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
         return $draggableimageitem;
     }
 
+    /**
+     * Returns an array of default repeat options.
+     *
+     * @return array
+     */
     protected function draggable_items_repeated_options() {
         $repeatedoptions = array();
         $repeatedoptions['draggroup']['default'] = '1';
         return $repeatedoptions;
     }
 
-    // Drop zones.
-
+    /**
+     * Returns an array with a drop zone form element.
+     *
+     * @param object $mform The Moodle form object.
+     * @param int $imagerepeats The number of repeat images.
+     * @return array Array with the dropzone element.
+     */
     protected function drop_zone($mform, $imagerepeats) {
         $dropzoneitem = array();
 
@@ -207,6 +240,11 @@ class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
         return array($dropzone);
     }
 
+    /**
+     * Returns an array of default drop zone repeat options.
+     *
+     * @return array
+     */
     protected function drop_zones_repeated_options() {
         $repeatedoptions = array();
         // The next two are PARAM_RAW becuase we need to distinguish 0 and ''.
@@ -218,6 +256,14 @@ class qtype_ddimageortext_edit_form extends qtype_ddtoimage_edit_form_base {
         return $repeatedoptions;
     }
 
+    /**
+     * Does post posting validation checks before.
+     *
+     * @param array $data Array of ("fieldname"=>value) of submitted data.
+     * @param array $files Array of uploaded files "element_name"=>tmp_file_path.
+     * @return array Array of "element_name"=>"error_description" if there are errors,
+     *         or an empty array if everything is OK.
+     */
     public function validation($data, $files) {
         $errors = parent::validation($data, $files);
         if (!self::file_uploaded($data['bgimage'])) {

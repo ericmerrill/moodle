@@ -38,6 +38,11 @@ class qtype_gapselect_edit_form extends qtype_gapselect_edit_form_base {
     /** @var array HTML tags allowed in answers (choices). */
     protected $allowedhtmltags = array();
 
+    /**
+     * Returns the name of the qtype.
+     *
+     * @return string
+     */
     public function qtype() {
         return 'gapselect';
     }
