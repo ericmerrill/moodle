@@ -747,7 +747,7 @@ class grade_report_grader extends grade_report {
             'items'     => array(),
             'users'     => array(),
             'feedback'  => array(),
-            'grades'    => array(),
+            'grades'    => array()
         );
         $jsscales = array();
 
@@ -1070,7 +1070,9 @@ class grade_report_grader extends grade_report {
 
                     if ($item->scaleid && !empty($scalesarray[$item->scaleid])) {
                         $itemcell->attributes['class'] .= ' grade_type_scale';
-                    } else if ($item->gradetype != GRADE_TYPE_TEXT) {
+                    } else if ($item->gradetype == GRADE_TYPE_VALUE) {
+                        $itemcell->attributes['class'] .= ' grade_type_value';
+                    } else if ($item->gradetype == GRADE_TYPE_TEXT) {
                         $itemcell->attributes['class'] .= ' grade_type_text';
                     }
 
@@ -1078,6 +1080,10 @@ class grade_report_grader extends grade_report {
                         $canoverride = true;
                         if ($item->is_category_item() || $item->is_course_item()) {
                             $canoverride = (bool) get_config('moodle', 'grade_overridecat');
+                        }
+                        // Locked items shouldn't be editable.
+                        if ($grade->is_locked()) {
+                            $canoverride = false;
                         }
                         if ($canoverride) {
                             $itemcell->attributes['class'] .= ' clickable';
