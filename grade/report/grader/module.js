@@ -629,11 +629,9 @@ M.gradereport_grader.classes.existingfield = function(ajax, userid, itemid) {
     this.grade = this.report.Y.one('#grade_'+userid+'_'+itemid);
 
     if (this.grade) {
-        if (this.report.grades) {
-            for (var i = 0; i < this.report.grades.length; i++) {
-                if (this.report.grades[i]['user'] == this.userid && this.report.grades[i]['item'] == this.itemid) {
-                    this.oldgrade = this.report.grades[i]['grade'];
-                }
+        for (var i = 0; i < this.report.grades.length; i++) {
+            if (this.report.grades[i]['user'] == this.userid && this.report.grades[i]['item'] == this.itemid) {
+                this.oldgrade = this.report.grades[i]['grade'];
             }
         }
 
