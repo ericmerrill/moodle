@@ -385,6 +385,15 @@ abstract class format_base {
     }
 
     /**
+     * Returns if the course supports AJAX topic renaming.
+     *
+     * @return boolean
+     */
+    public function supports_ajax_renaming() {
+        return false;
+    }
+
+    /**
      * Custom action after section has been moved in AJAX mode
      *
      * Used in course/rest.php

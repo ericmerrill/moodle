@@ -308,6 +308,10 @@
     font-size: 108%;
     clear: both;
 }
+.course-content .single-section .section-navigation .sectionname {
+    position: relative;
+}
+
 .course-content .single-section .section-navigation .mdl-left {
     font-weight: normal;
     float: left;
@@ -336,6 +340,7 @@
 .course-content ul li.section.main {
     border-bottom: 2px solid @tableBorder;
     margin-top: 0;
+    position: relative;
 }
 .course-content ul li.section.hidden {
     .sectionname > span,
@@ -482,9 +487,22 @@ ul.weeks h3.sectionname {
     white-space: normal;
 }
 
+.editing h3.sectionname .editinstructions {
+    margin-left: 0;
+    font-weight: normal;
+    opacity: 1 !important;
+    top: 10px;
+}
+
 .single-section h3.sectionname {
     text-align: center;
     clear: both;
+}
+
+.editing .single-section h3.sectionname .editinstructions {
+    font-weight: normal;
+    opacity: 1 !important;
+    top: 10px;
 }
 
 .section img.movetarget {

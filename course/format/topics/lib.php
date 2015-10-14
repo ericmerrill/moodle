@@ -382,4 +382,13 @@ class format_topics extends format_base {
     public function can_delete_section($section) {
         return true;
     }
+
+    /**
+     * Returns if the course supports AJAX topic renaming.
+     *
+     * @return boolean
+     */
+    public function supports_ajax_renaming() {
+        return true;
+    }
 }

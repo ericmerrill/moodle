@@ -86,7 +86,33 @@ switch($requestmethod) {
                         $resourcestotoggle = set_section_visible($course->id, $id, $value);
                         echo json_encode(array('resourcestotoggle' => $resourcestotoggle));
                         break;
+                    case 'gettitle':
+                        require_capability('moodle/course:update', $coursecontext);
+                        if (!course_get_format($course)->supports_ajax_renaming()) {
+                            throw new moodle_exception('Format does not support AJAX renaming of topics');
+                        }
+                        $sectiontitle = get_section_name($course, $id);
 
+                        echo json_encode(array('instancename' => $sectiontitle));
+                        break;
+                    case 'updatetitle':
+                        require_capability('moodle/course:update', $coursecontext);
+                        $format = course_get_format($course);
+                        if (!$format->supports_ajax_renaming()) {
+                            throw new moodle_exception('Format does not support AJAX renaming of topics');
+                        }
+                        if (!$section = $DB->get_record('course_sections', array('course' => $course->id, 'section' => $id))) {
+                            throw new moodle_exception('AJAX commands.php: Bad section ID '.$id);
+                        }
+                        if ($title === "") {
+                            // Empty titles are null, which sets them to their default.
+                            $title = null;
+                        }
+                        $DB->set_field('course_sections', 'name', $title, array('id' => $section->id));
+                        rebuild_course_cache($course->id, true);
+
+                        echo json_encode(array('instancename' => get_section_name($course, $id)));
+                        break;
                     case 'move':
                         require_capability('moodle/course:movesections', $coursecontext);
                         move_section_to($course, $id, $value);

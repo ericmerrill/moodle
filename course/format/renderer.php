@@ -81,9 +81,55 @@ abstract class format_section_renderer_base extends plugin_renderer_base {
         $title = get_section_name($course, $section);
         $url = course_get_url($course, $section->section, array('navigation' => true));
         if ($url) {
-            $title = html_writer::link($url, $title);
+            $title = html_writer::link($url, $title, array('class' => 'section-title'));
+        } else {
+            $title = html_writer::tag('span', $title, array('class' => 'section-title'));
         }
         return $title;
+    }
+
+    /**
+     * Generates a control item for editing a section title.
+     *
+     * @param stdClass $section The course_section entry from DB
+     * @param stdClass $course The course entry from DB
+     * @param bool $onsectionpage true if being printed on a section page
+     * @return string HTML to output.
+     */
+    protected function section_title_edit_control($section, $course, $onsectionpage = false) {
+        global $PAGE;
+
+        if (!$PAGE->user_is_editing() || !course_ajax_enabled($course) || !course_format_ajax_renaming_support($course->format)) {
+            return "";
+        }
+
+        $coursecontext = context_course::instance($course->id);
+        $isstealth = isset($course->numsections) && ($section->section > $course->numsections);
+
+        if ($isstealth || !has_capability('moodle/course:update', $coursecontext)) {
+            return "";
+        }
+
+        if ($section->section && get_string_manager()->string_exists('editsectiontitle', 'format_'.$course->format)) {
+            $edittitle = get_string('editsectiontitle', 'format_'.$course->format);
+        } else {
+            $edittitle = get_string('editsectiontitle');
+        }
+
+        $title = $this->section_title($section, $course);
+
+        return html_writer::span(
+            html_writer::link(
+                new moodle_url('/course/editsection.php', array('id' => $section->id, 'sr' => $onsectionpage)),
+                $this->output->pix_icon('t/editstring', '', 'moodle', array('class' => 'iconsmall visibleifjs', 'title' => '')),
+                array(
+                    'class' => 'editing_section_title',
+                    'data-action' => 'editsectiontitle',
+                    'title' => $edittitle,
+                )
+            )
+        );
+
     }
 
     /**
@@ -216,7 +262,9 @@ abstract class format_section_renderer_base extends plugin_renderer_base {
         if ($hasnamenotsecpg || $hasnamesecpg) {
             $classes = '';
         }
-        $sectionname = html_writer::tag('span', $this->section_title($section, $course));
+        $sectionname = $this->section_title($section, $course);
+        $sectionname .= $this->section_title_edit_control($section, $course, $onsectionpage);
+        $sectionname = html_writer::tag('span', $sectionname, array('class' => 'section-head'));
         $o.= $this->output->heading($sectionname, 3, 'sectionname' . $classes);
 
         $o.= html_writer::start_tag('div', array('class' => 'summary'));
@@ -775,7 +823,7 @@ abstract class format_section_renderer_base extends plugin_renderer_base {
         }
 
         // Start single-section div
-        echo html_writer::start_tag('div', array('class' => 'single-section'));
+        echo html_writer::start_tag('div', array('class' => 'single-section', 'id' => 'section-' . $displaysection));
 
         // The requested section page.
         $thissection = $modinfo->get_section_info($displaysection);
@@ -791,7 +839,9 @@ abstract class format_section_renderer_base extends plugin_renderer_base {
         if (!$thissection->visible) {
             $classes .= ' dimmed_text';
         }
-        $sectionname = html_writer::tag('span', get_section_name($course, $displaysection));
+        $sectionname = html_writer::tag('span', get_section_name($course, $displaysection), array('class' => 'section-title'));
+        $sectionname .= $this->section_title_edit_control($thissection, $course, $displaysection);
+        $sectionname = html_writer::tag('span', $sectionname, array('class' => 'section-head'));
         $sectiontitle .= $this->output->heading($sectionname, 3, $classes);
 
         $sectiontitle .= html_writer::end_tag('div');

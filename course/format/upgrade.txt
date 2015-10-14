@@ -11,6 +11,7 @@ Overview of this plugin type at http://docs.moodle.org/dev/Course_formats
   implementation basically uses the implementation of format_base::get_section_name. The method can be overridden in
   format_base subclasses that use sections (i.e. format_topics, format_weeks). In relation to the changes made for the default
   section name, the default section name is now being shown when editing the section information.
+* New method format_base::supports_ajax_renaming allows course formats to prohibit AJAX renaming. 
 
 === 2.9 ===
 * Course formats may support deleting sections, see MDL-10405 for more details.

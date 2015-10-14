@@ -2413,6 +2413,18 @@ function course_format_ajax_support($format) {
 }
 
 /**
+ * Returns the information about the ajax renaming support in the given source format
+ *
+ * @param string $format
+ * @return boolean
+ */
+function course_format_ajax_renaming_support($format) {
+    $course = new stdClass();
+    $course->format = $format;
+    return course_get_format($course)->supports_ajax_renaming();
+}
+
+/**
  * Can the current user delete this course?
  * Course creators have exception,
  * 1 day after the creation they can sill delete the course.
@@ -3292,6 +3304,7 @@ function include_course_ajax($course, $usedmodules = array(), $enabledmodules = 
                 'courseid' => $course->id,
                 'format' => $course->format,
                 'ajaxurl' => $config->sectionurl,
+                'renaming' => course_format_ajax_renaming_support($course->format),
                 'config' => $config,
             ))
     );

@@ -19,13 +19,17 @@ var CSS = {
         DIMCLASS : 'dimmed',
         DIMMEDTEXT : 'dimmed_text',
         EDITINSTRUCTIONS : 'editinstructions',
+        EDITINGSECTIONTITLE: 'editor_displayed',
         EDITINGTITLE: 'editor_displayed',
         HIDE : 'hide',
         MODINDENTCOUNT : 'mod-indent-',
         MODINDENTHUGE : 'mod-indent-huge',
         MODULEIDPREFIX : 'module-',
+        SECTIONHEAD : 'section-head',
+        SECTIONHEADER : 'h3.sectionname',
         SECTIONHIDDENCLASS : 'hidden',
         SECTIONIDPREFIX : 'section-',
+        SECTIONTITLE : 'section-title',
         SHOW : 'editing_show',
         TITLEEDITOR : 'titleeditor'
     },
@@ -43,6 +47,7 @@ var CSS = {
         COMMANDSPAN : '.commands',
         CONTENTAFTERLINK : 'div.contentafterlink',
         CONTENTWITHOUTLINK : 'div.contentwithoutlink',
+        EDITSECTIONTITLE: 'a.editing_section_title',
         EDITTITLE: 'a.editing_title',
         HIDE : 'a.editing_hide',
         HIGHLIGHT : 'a.editing_highlight',
@@ -50,7 +55,12 @@ var CSS = {
         MODINDENTDIV : '.mod-indent',
         MODINDENTOUTER : '.mod-indent-outer',
         PAGECONTENT : 'body',
+        SECTIONACTION : 'a.editing_section_title',
+        SECTIONBOX : 'li.section, div.single-section',
+        SECTIONFORM : CSS.SECTIONHEADER + ' form',
+        SECTIONINSTANCE : '.' + CSS.SECTIONHEAD,
         SECTIONLI : 'li.section',
+        SECTIONNAME : '.' + CSS.SECTIONHEAD + ' .' + CSS.SECTIONTITLE,
         SHOW : 'a.'+CSS.SHOW,
         SHOWHIDE : 'a.editing_showhide'
     },
@@ -956,6 +966,17 @@ var SECTIONTOOLBOX = function() {
 
 Y.extend(SECTIONTOOLBOX, TOOLBOX, {
     /**
+     * An Array of events added when editing a title.
+     * These should all be detached when editing is complete.
+     *
+     * @property edittitleevents
+     * @protected
+     * @type Array
+     * @protected
+     */
+    edittitleevents: [],
+
+    /**
      * Initialize the section toolboxes module.
      *
      * Updates all span.commands with relevant handlers and other required changes.
@@ -971,6 +992,11 @@ Y.extend(SECTIONTOOLBOX, TOOLBOX, {
 
         // Section Visibility.
         Y.delegate('click', this.toggle_hide_section, SELECTOR.PAGECONTENT, SELECTOR.SECTIONLI + ' ' + SELECTOR.SHOWHIDE, this);
+
+        if (this.get('renaming')) {
+            BODY.delegate('key', this.handle_data_action, 'down:enter', SELECTOR.SECTIONACTION, this);
+            Y.delegate('click', this.handle_data_action, BODY, SELECTOR.SECTIONACTION, this);
+        }
     },
 
     toggle_hide_section : function(e) {
@@ -1107,10 +1133,225 @@ Y.extend(SECTIONTOOLBOX, TOOLBOX, {
         var lightbox = M.util.add_lightbox(Y, section);
         lightbox.show();
         this.send_request(data, lightbox);
+    },
+
+    /**
+     * Handles the delegation event. When this is fired someone has triggered an action.
+     *
+     * Note not all actions will result in an AJAX enhancement.
+     *
+     * @protected
+     * @method handle_data_action
+     * @param {EventFacade} ev The event that was triggered.
+     * @return {boolean}
+     */
+    handle_data_action: function(ev) {
+        // We need to get the anchor element that triggered this event.
+        var node = ev.target;
+        if (!node.test('a')) {
+            node = node.ancestor(SELECTOR.SECTIONACTION);
+        }
+
+        // From the anchor we can get both the activity (added during initialisation) and the action being
+        // performed (added by the UI as a data attribute).
+        var action = node.getData('action'),
+            section = node.ancestor(SELECTOR.SECTIONBOX);
+
+        if (!node.test('a') || !action || !section) {
+            // It wasn't a valid action node.
+            return;
+        }
+
+        // Switch based upon the action and do the desired thing.
+        if (action == 'editsectiontitle') {
+            // The user wishes to edit the title of the event.
+            this.edit_section_title(ev, node, section);
+        }
+    },
+
+    /**
+     * Edit the title for the section
+     *
+     * @method edit_section_title
+     * @protected
+     * @param {EventFacade} ev The event that was fired.
+     * @param {Node} button The button that triggered this action.
+     * @param {Node} section The section node that this action will be performed on.
+     * @chainable
+     */
+    edit_section_title: function(ev, button, section) {
+        // Get the element we're working on
+        var sectionid = Y.Moodle.core_course.util.section.getId(section),
+            instancename  = section.one(SELECTOR.SECTIONNAME),
+            instance = section.one(SELECTOR.SECTIONINSTANCE),
+            currenttitle = instancename.get('firstChild'),
+            oldtitle = currenttitle.get('data'),
+            titletext = oldtitle,
+            thisevent,
+            anchor = instance,
+            data = {
+                'class': 'section',
+                'field': 'gettitle',
+                'id': sectionid
+            };
+
+        // Prevent the default actions.
+        ev.preventDefault();
+
+        this.send_request(data, null, function(response) {
+            // Try to retrieve the existing string from the server
+            if (response.instancename) {
+                titletext = response.instancename;
+            }
+
+            // Create the editor and submit button
+            var editform = Y.Node.create('<form action="#" />');
+            var editinstructions = Y.Node.create('<span class="'+CSS.EDITINSTRUCTIONS+'" id="id_editinstructions" />')
+                .set('innerHTML', M.util.get_string('edittitleinstructions', 'moodle'));
+            var editor = Y.Node.create('<input name="title" type="text" class="'+CSS.TITLEEDITOR+'" />').setAttrs({
+                'value': titletext,
+                'autocomplete': 'off',
+                'aria-describedby': 'id_editinstructions',
+                'maxLength': '255'
+            });
+
+            // Clear the existing content and put the editor in
+            editform.appendChild(editor);
+            editform.setData('anchor', anchor);
+            instance.insert(editinstructions, 'before');
+            anchor.replace(editform);
+
+            // We hide various components whilst editing:
+            section.addClass(CSS.EDITINGTITLE);
+
+            // Focus and select the editor text
+            editor.focus().select();
+
+            // Cancel the edit if we lose focus or the escape key is pressed.
+            /*thisevent = editor.on('blur', this.edit_section_title_cancel, this, section, false);
+            this.edittitleevents.push(thisevent);
+            thisevent = editor.on('key', this.edit_section_title_cancel, 'esc', this, section, true);
+            this.edittitleevents.push(thisevent);
+
+            // Handle form submission.
+            thisevent = editform.on('submit', this.edit_section_title_submit, this, section, oldtitle);
+            this.edittitleevents.push(thisevent);*/
+        });
+        return this;
+    },
+
+    /**
+     * Add a loading icon to the specified activity.
+     *
+     * The icon is added within the action area.
+     *
+     * @method add_spinner
+     * @param {Node} section The section to add a loading icon to
+     * @return {Node|null} The newly created icon, or null if the action area was not found.
+     */
+    add_spinner: function(section) {
+        var actionarea = section.one(SELECTOR.SECTIONINSTANCE);
+        if (actionarea) {
+            return M.util.add_spinner(Y, actionarea);
+        }
+        return null;
+    },
+
+    /**
+     * Handles the submit event when editing the section title.
+     *
+     * @method edit_section_title_submit
+     * @protected
+     * @param {EventFacade} ev The event that triggered this.
+     * @param {Node} section The section whose title we are altering.
+     * @param {String} originaltitle The original title the section had.
+     */
+    edit_section_title_submit: function(ev, section, originaltitle) {
+        // We don't actually want to submit anything
+        ev.preventDefault();
+
+        var newtitle = Y.Lang.trim(section.one(SELECTOR.SECTIONFORM + ' ' + SELECTOR.ACTIVITYTITLE).get('value'));
+        this.edit_section_title_clear(section);
+        var spinner = this.add_spinner(section);
+        if (newtitle !== null && newtitle !== originaltitle) {
+            var data = {
+                'class': 'section',
+                'field': 'updatetitle',
+                'title': newtitle,
+                'id': Y.Moodle.core_course.util.section.getId(section)
+            };
+            this.send_request(data, spinner, function(response) {
+                if (response.instancename) {
+                    section.one(SELECTOR.SECTIONNAME).setContent(response.instancename);
+                }
+            });
+        }
+    },
+
+    /**
+     * Handles the cancel event when editing the section title.
+     *
+     * @method edit_section_title_cancel
+     * @protected
+     * @param {EventFacade} ev The event that triggered this.
+     * @param {Node} section The section whose title we are altering.
+     * @param {Boolean} preventdefault If true we should prevent the default action from occuring.
+     */
+    edit_section_title_cancel: function(ev, section, preventdefault) {
+        if (preventdefault) {
+            ev.preventDefault();
+        }
+        this.edit_section_title_clear(section);
+    },
+
+    /**
+     * Handles clearing the editing UI and returning things to the original state they were in.
+     *
+     * @method edit_section_title_clear
+     * @protected
+     * @param {Node} section  The section whose title we were altering.
+     */
+    edit_section_title_clear: function(section) {
+        // Detach all listen events to prevent duplicate triggers
+        new Y.EventHandle(this.edittitleevents).detach();
+
+        var editform = section.one(SELECTOR.SECTIONFORM),
+            instructions = section.one('#id_editinstructions');
+        if (editform) {
+            editform.replace(editform.getData('anchor'));
+        }
+        if (instructions) {
+            instructions.remove();
+        }
+
+        // Remove the editing class again to revert the display.
+        section.removeClass(CSS.EDITINGTITLE);
+
+        // Refocus the link which was clicked originally so the user can continue using keyboard nav.
+        Y.later(100, this, function() {
+            section.one(SELECTOR.EDITSECTIONTITLE).focus();
+        });
+
+        // TODO MDL-50768 This hack is to keep Behat happy until they release a version of
+        // MinkSelenium2Driver that fixes
+        // https://github.com/Behat/MinkSelenium2Driver/issues/80.
+        if (!Y.one('input[name=title]')) {
+            Y.one('body').append('<input type="text" name="title" style="display: none">');
+        }
     }
 }, {
     NAME : 'course-section-toolbox',
     ATTRS : {
+        /**
+         * Indicates if we should use AJAX section renaming.
+         *
+         * @attribute renaming
+         * @default 0
+         * @type boolean
+         */
+        renaming : {
+            'value': false
+        }
     }
 });
 

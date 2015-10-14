@@ -557,6 +557,7 @@ $string['editorresettodefaults'] = 'Reset to default values';
 $string['editorsettings'] = 'Editor settings';
 $string['editorshortcutkeys'] = 'Editor shortcut keys';
 $string['editsection'] = 'Edit section';
+$string['editsectiontitle'] = 'Edit section title';
 $string['editsummary'] = 'Edit summary';
 $string['edittitle'] = 'Edit title';
 $string['edittitleinstructions'] = 'Escape to cancel, Enter when finished';
