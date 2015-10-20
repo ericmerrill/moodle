@@ -3165,6 +3165,174 @@ class core_accesslib_testcase extends advanced_testcase {
         $this->assertEquals(2, count_role_users($roleid1, context_course::instance($course->id), false));
         $this->assertEquals(3, count_role_users($roleid1, context_course::instance($course->id), true));
     }
+
+    /**
+     * Tests test_has_capability_in_any_course function.
+     */
+    public function test_has_capability_in_any_course() {
+        global $DB;
+
+        $this->resetAfterTest();
+        $generator = self::getDataGenerator();
+
+        $parentcat = $generator->create_category();
+        $parentcatcontext = context_coursecat::instance($parentcat->id);
+        $parentcourse = $generator->create_course(array('category' => $parentcat->id));
+        $parentcoursecontext = context_course::instance($parentcourse->id);
+
+        $parentcat2 = $generator->create_category();
+        $parentcat2context = context_coursecat::instance($parentcat2->id);
+        $childcat2 = $generator->create_category(array('parent' => $parentcat2->id));
+        $childcat2context = context_coursecat::instance($childcat2->id);
+        $childcourse2 = $generator->create_course(array('category' => $childcat2->id));
+        $childcourse2context = context_course::instance($childcourse2->id);
+
+        $childcat = $generator->create_category(array('parent' => $parentcat->id));
+        $childcatcontext = context_coursecat::instance($childcat->id);
+        $childcourse = $generator->create_course(array('category' => $childcat->id));
+        $childcoursecontext = context_course::instance($childcourse->id);
+
+        $child2cat = $generator->create_category(array('parent' => $parentcat->id));
+        $child2catcontext = context_coursecat::instance($child2cat->id);
+
+        $studentrole = $DB->get_record('role', array('shortname' => 'student'), '*', MUST_EXIST);
+        set_role_contextlevels($studentrole->id, array(CONTEXT_SYSTEM, CONTEXT_COURSECAT, CONTEXT_COURSE));
+        $managerrole = $DB->get_record('role', array('shortname' => 'manager'), '*', MUST_EXIST);
+        $user = $generator->create_user();
+
+        // Note: Testing a capablity that teachers and "higher" will have, but lower will not by default.
+        $this->assertTrue($DB->record_exists('capabilities', array('name' => 'tool/monitor:subscribe')));
+
+        // First, confirm the user has the capability nowhere as we expect.
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+
+        // If we just assign the role at the course level.
+        role_assign($managerrole->id, $user->id, $parentcoursecontext->id);
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+
+        role_unassign_all(array('userid' => $user->id));
+
+        // If we assign it at a high level category.
+        role_assign($managerrole->id, $user->id, $parentcatcontext->id);
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+
+        role_unassign_all(array('userid' => $user->id));
+
+        // If we assign it in a child category.
+        role_assign($managerrole->id, $user->id, $childcatcontext->id);
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+
+        role_unassign_all(array('userid' => $user->id));
+
+        // If we assign it in a child category with no children, we should get false.
+        role_assign($managerrole->id, $user->id, $child2catcontext->id);
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+
+        role_unassign_all(array('userid' => $user->id));
+
+        // Make sure assigning them as a student doesn't give them the permission.
+        role_assign($studentrole->id, $user->id, $parentcoursecontext->id);
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        // But still works if they are a manager in the same course.
+        role_assign($managerrole->id, $user->id, $parentcoursecontext->id);
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        // Or a different course.
+        role_unassign($managerrole->id, $user->id, $parentcoursecontext->id);
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        role_assign($managerrole->id, $user->id, $childcoursecontext->id);
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+
+        role_unassign_all(array('userid' => $user->id));
+
+        // Now lets look at permissive overrides.
+        // First lets give them an unprivileged role in a category.
+        role_assign($studentrole->id, $user->id, $parentcatcontext->id);
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        // Now override a course in this category and see if they get it.
+        assign_capability('tool/monitor:subscribe', CAP_ALLOW, $studentrole->id, $parentcoursecontext->id);
+        $parentcoursecontext->mark_dirty();
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        unassign_capability('tool/monitor:subscribe', $studentrole->id, $parentcoursecontext->id);
+        $parentcoursecontext->mark_dirty();
+        // Then override a a course in a sub-category and check.
+        assign_capability('tool/monitor:subscribe', CAP_ALLOW, $studentrole->id, $childcoursecontext->id);
+        $childcoursecontext->mark_dirty();
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        unassign_capability('tool/monitor:subscribe', $studentrole->id, $childcoursecontext->id);
+        $childcoursecontext->mark_dirty();
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        // Now we are going to override the main category.
+        assign_capability('tool/monitor:subscribe', CAP_ALLOW, $studentrole->id, $parentcatcontext->id);
+        $parentcatcontext->mark_dirty();
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        unassign_capability('tool/monitor:subscribe', $studentrole->id, $parentcatcontext->id);
+        $parentcatcontext->mark_dirty();
+        // Now a sub-category with a course.
+        assign_capability('tool/monitor:subscribe', CAP_ALLOW, $studentrole->id, $childcatcontext->id);
+        $childcatcontext->mark_dirty();
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        unassign_capability('tool/monitor:subscribe', $studentrole->id, $childcatcontext->id);
+        $childcatcontext->mark_dirty();
+        // Now a sub-category with no courses (so should result should be false).
+        assign_capability('tool/monitor:subscribe', CAP_ALLOW, $studentrole->id, $child2catcontext->id);
+        $child2catcontext->mark_dirty();
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        unassign_capability('tool/monitor:subscribe', $studentrole->id, $child2catcontext->id);
+        $child2catcontext->mark_dirty();
+
+        // Now testing with an intermediate level role assignment.
+        role_unassign($studentrole->id, $user->id, $parentcatcontext->id);
+        role_assign($studentrole->id, $user->id, $childcatcontext->id);
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        // Check that an override in a lower course doesn't hit.
+        assign_capability('tool/monitor:subscribe', CAP_ALLOW, $studentrole->id, $parentcoursecontext->id);
+        $parentcoursecontext->mark_dirty();
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        unassign_capability('tool/monitor:subscribe', $studentrole->id, $parentcoursecontext->id);
+        $parentcoursecontext->mark_dirty();
+        // Check that an override in a sibling category doesn't hit.
+        assign_capability('tool/monitor:subscribe', CAP_ALLOW, $studentrole->id, $child2catcontext->id);
+        $child2catcontext->mark_dirty();
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        // Now move to the other sibling - with no children - name make sure it still doesn't work.
+        role_unassign($studentrole->id, $user->id, $childcatcontext->id);
+        role_assign($studentrole->id, $user->id, $child2catcontext->id);
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        unassign_capability('tool/monitor:subscribe', $studentrole->id, $child2catcontext->id);
+        $child2catcontext->mark_dirty();
+
+        role_unassign_all(array('userid' => $user->id));
+
+        // Now we are going to test CAP_PREVENT and CAP_PROHIBIT.
+        // Enrol as a privilaged user in a course.
+        role_assign($managerrole->id, $user->id, $childcoursecontext->id);
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        // Now pevent on the grand-parent context.
+        assign_capability('tool/monitor:subscribe', CAP_PREVENT, $managerrole->id, $parentcatcontext->id);
+        $parentcatcontext->mark_dirty();
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        // Now even more specifically, allow in the parent context.
+        assign_capability('tool/monitor:subscribe', CAP_ALLOW, $managerrole->id, $childcatcontext->id);
+        $childcatcontext->mark_dirty();
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        unassign_capability('tool/monitor:subscribe', $managerrole->id, $parentcatcontext->id);
+        $parentcatcontext->mark_dirty();
+        unassign_capability('tool/monitor:subscribe', $managerrole->id, $childcatcontext->id);
+        $childcatcontext->mark_dirty();
+
+        role_unassign_all(array('userid' => $user->id));
+        // Now test different role assignments at different levels.
+        // Enrol as privilaged in the Grand parent.
+        role_assign($managerrole->id, $user->id, $parentcat2context->id);
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        // Enrol as a Inherit role in the parent.
+        role_assign($studentrole->id, $user->id, $childcat2context->id);
+        $this->assertTrue(has_capability_in_any_course('tool/monitor:subscribe', $user));
+        // Now change it to prohibit.
+        assign_capability('tool/monitor:subscribe', CAP_PROHIBIT, $studentrole->id, $parentcat2context->id);
+        $parentcat2context->mark_dirty();
+        $this->assertFalse(has_capability_in_any_course('tool/monitor:subscribe', $user));
+    }
 }
 
 /**

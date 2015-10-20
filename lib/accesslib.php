@@ -4304,6 +4304,225 @@ function get_user_capability_course($capability, $userid = null, $doanything = t
 }
 
 /**
+ * This function checks to see if they have a particular capability in any course in the system.
+ *
+ * To improve efficiency, this plugin builds a list of candidate contexts by searching the access
+ * array for the user for contexts and context parents that are likely to have the capability.
+ * It then checks each candidate context, and returns true on the first one that hits.
+ *
+ * Users that don't have the capability anywhere, as well as admins, will quickly be resolved,
+ * while users with combinations will require some (hopefully only one though) context checks.
+ * The worst case are users with extensive combinations of allow and prevent/prohibit, which many
+ * require many checks, but still less than the alternate of checking every course context.
+ *
+ * @since Moodle 2.9.3
+ * @param string $capability Capability in question
+ * @param integer|stdClass $user A user id or object. By default (null) checks the permissions of the current user.
+ * @param bool $doanything True if 'doanything' is permitted (default)
+ * @return bool True if they do, false if they don't
+ */
+function has_capability_in_any_course($capability, $user = null, $doanything = true) {
+    global $USER, $ACCESSLIB_PRIVATE;
+
+    if ($user === null) {
+        $userid = $USER->id;
+    } else {
+        $userid = is_object($user) ? $user->id : $user;
+    }
+
+    // First, just check at the front page. Get admins out of here.
+    if (has_capability($capability, context_course::instance(get_site()->id), $userid, $doanything)) {
+        return true;
+    }
+
+    // If there are any dirty contexts, reload them all, as we need our access data current.
+    if (!empty($ACCESSLIB_PRIVATE->dirtycontexts)) {
+        reload_all_capabilities();
+    }
+
+    // Load the correct access array for the user.
+    if ($USER->id == $userid) {
+        if (!isset($USER->access)) {
+            load_all_capabilities();
+        }
+        $access =& $USER->access;
+
+    } else {
+        // Make sure user accessdata is really loaded.
+        get_user_accessdata($userid, true);
+        $access =& $ACCESSLIB_PRIVATE->accessdatabyuser[$userid];
+    }
+
+    if (empty($access)) {
+        return false;
+    }
+
+    // Go through all the roles and find where the capability exists, recording it in a table for later.
+    $capableroles = array();
+    foreach ($access['rdef'] as $pathrole => $context) {
+        if (isset($context[$capability]) && $context[$capability] == CAP_ALLOW) {
+            $role = explode(':', $pathrole)[1];
+            $path = explode(':', $pathrole)[0];
+            if (isset($capableroles[$role])) {
+                $capableroles[$role][] = $path;
+            } else {
+                $capableroles[$role] = array($path);
+            }
+        }
+    }
+
+    // If there are no capable roles, then we are done.
+    if (empty($capableroles)) {
+        return false;
+    }
+
+    $searchedpaths = array();
+    $sqls = array();
+    $params = array();
+
+    // Go through each role assignment.
+    foreach ($access['ra'] as $path => $roles) {
+        foreach ($roles as $roleid) {
+            if (!array_key_exists($roleid, $capableroles)) {
+                continue;
+            }
+
+            // We are going to go back down the tree (towards the root), looking for a capable role.
+            $subpath = $path;
+            do {
+                // Search "down the tree" for a role that has this ability.
+                // If we find the path in useful capabilities, then we are going to search our role assignment path.
+                if (in_array($subpath, $capableroles[$roleid])) {
+                    // There is an assignment. Use it.
+                    if (add_path_to_course_search_sql_and_run($sqls, $params, $searchedpaths, $path,
+                            $capability, $userid, $doanything)) {
+                        return true;
+                    }
+                    // Since we have a hit, and we will search this entire path, no need to keep looking.
+                    continue(3);
+                }
+
+                $subpath = rtrim($subpath, '0123456789');
+                $subpath = rtrim($subpath, '/');
+
+            } while ($subpath !== '');
+
+            // This catches role overrides higher than the role assignment.
+            // Like a user with authenticated user at the root level, and the permission overriden for that role in a course.
+            foreach ($capableroles[$roleid] as $roledefpath) {
+                // Check if the role definition path starts with the role assignment path.
+                if (strpos($roledefpath, $path.'/') === 0) {
+                    // There is an assignment. Use the sub-definition.
+                    if (add_path_to_course_search_sql_and_run($sqls, $params, $searchedpaths, $roledefpath,
+                            $capability, $userid, $doanything)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+    }
+
+    return check_sql_contexts_for_capability($sqls, $params, $capability, $userid, $doanything);
+}
+
+/**
+ * This is meant purely as a support function for {@link has_capability_in_any_course()}, and should not be called
+ * from anywhere else!
+ *
+ * This function adds sql statements to search for, while attempting to de-duplicate.
+ * When it hits a threashold, it also will execute the check, returning true if they have the capability,
+ * false in any other case.
+ *
+ * @access private
+ * @param array $sqls Array of SQL statements that will be joined with Union
+ * @param array $params The params that go with the SQLs
+ * @param array $searchedpaths Array with keys of arrays that have been searched
+ * @param string $path The path (without a trailing /) to search
+ * @param string $capability Capability in question
+ * @param int $userid User ID or null for current user
+ * @param bool $doanything True if 'doanything' is permitted
+ * @return bool True if we did a search and they have the capability, false in any other case
+ */
+function add_path_to_course_search_sql_and_run(&$sqls, &$params, &$searchedpaths, $path, $capability, $userid, $doanything) {
+    // If we already have searched this or a parent of this, don't bother again.
+    $subpath = $path;
+    while ($subpath = rtrim($subpath, '0123456789')) {
+        $subpath = rtrim($subpath, '/');
+        if ($subpath === '') {
+            break;
+        }
+        if (array_key_exists($subpath, $searchedpaths)) {
+            return false;
+        }
+    }
+
+    $contextpreload = context_helper::get_preload_record_columns_sql('ctx');
+    $searchedpaths[$path] = 1;
+    $sqls[] = "(SELECT $contextpreload
+                  FROM {context} ctx
+                 WHERE (ctx.path = ? OR ctx.path LIKE ?)
+                   AND ctx.contextlevel = " . CONTEXT_COURSE . ")";
+    $params[] = $path;
+    $params[] = $path.'/%';
+
+    // Because we have a high expectation of success, we are going to check "frequently".
+    if (count($sqls) > 100) {
+        $result = check_sql_contexts_for_capability($sqls, $params, $capability, $userid, $doanything);
+        // Clear the arrays, since we just searched them.
+        $sqls = array();
+        $params = array();
+
+        return $result;
+    }
+
+    return false;
+}
+
+/**
+ * This is meant purely as a support function for {@link has_capability_in_any_course()} and
+ * {$link @add_path_to_course_search_sql_and_run()}. It should not be called from anywhere else!
+ *
+ * This function joins the passed SQLs with UNION, and then executes them with the provided parameters.
+ * SQL should return course context records, and use {@link context_helper::get_preload_record_columns_sql()}.
+ *
+ * The return contexts will then be checked for the passed capability, and if found return true. If no
+ * context has the capability, false will be returned.
+ *
+ * @access private
+ * @param array $sqls Array of SQL statements that will be joined with Union
+ * @param array $params The params that go with the SQLs
+ * @param string $capability Capability in question
+ * @param int $userid User ID or null for current user
+ * @param bool $doanything True if 'doanything' is permitted
+ * @return bool True if the user has the capability in ANY context, false if in none
+ */
+function check_sql_contexts_for_capability(&$sqls, &$params, $capability, $userid, $doanything) {
+    global $DB;
+
+    if (empty($sqls)) {
+        return false;
+    }
+
+    $rs = $DB->get_recordset_sql(implode("\nUNION\n", $sqls), $params);
+
+    // For each returned course context, see if the user has the capability.
+    foreach ($rs as $contextrec) {
+        $instanceid = $contextrec->ctxinstance;
+        $classname = context_helper::get_class_for_level($contextrec->ctxlevel);
+        context_helper::preload_from_record($contextrec);
+        $context = $classname::instance($instanceid );
+        if (has_capability($capability, $context, $userid, $doanything)) {
+            $rs->close();
+            return true;
+        }
+    }
+    $rs->close();
+
+    return false;
+}
+
+/**
  * This function finds the roles assigned directly to this context only
  * i.e. no roles in parent contexts
  *

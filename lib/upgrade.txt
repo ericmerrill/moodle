@@ -9,6 +9,10 @@ information provided here is intended especially for developers.
 * Users of the text editor API to manually create a text editor should call set_text before calling use_editor. See MDL-51179.
 * In the html_editors (tinyMCE, Atto), the manage files button can be hidden by changing the 'enable_filemanagement' option to false.
 
+=== 2.9.3 ===
+
+* New access lib function has_capability_in_any_course(), which tries to efficiently search for if the user has a capability in any course.
+
 === 2.9.1 ===
 
 * New methods grade_grade::get_grade_max() and get_grade_min() must be used rather than directly the public properties rawgrademax and rawgrademin.
