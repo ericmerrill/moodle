@@ -80,7 +80,8 @@ function tool_monitor_extend_navigation_user_settings($navigation, $user, $userc
     // Don't show the setting if the event monitor isn't turned on. No access to other peoples subscriptions.
     if (get_config('tool_monitor', 'enablemonitor') && $USER->id == $user->id) {
         // Now let's check to see if the user has any courses / site rules that they can subscribe to.
-        if ($courses = tool_monitor_get_user_courses()) {
+        if (has_capability('tool/monitor:subscribe', context_system::instance())
+                || has_capability_in_any_course('tool/monitor:subscribe')) {
             $url = new moodle_url('/admin/tool/monitor/index.php');
             $subsnode = navigation_node::create(get_string('managesubscriptions', 'tool_monitor'), $url,
                     navigation_node::TYPE_SETTING, null, 'monitor', new pix_icon('i/settings', ''));

@@ -152,6 +152,10 @@ information provided here is intended especially for developers.
 * External function core_course_external::get_course_contents returned parameter "name" has been changed to PARAM_RAW,
   this is because the new external_format_string function may return raw data if the global moodlewssettingraw parameter is used.
 
+=== 2.9.3 ===
+
+* New access lib function has_capability_in_any_course(), which tries to efficiently search for if the user has a capability in any course.
+
 === 2.9.1 ===
 
 * New methods grade_grade::get_grade_max() and get_grade_min() must be used rather than directly the public properties rawgrademax and rawgrademin.
