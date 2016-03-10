@@ -213,10 +213,25 @@ abstract class base {
      * Search areas should send plain text to the search engine, use the following function to convert any user
      * input data to plain text: {@link content_to_text}
      *
+     * Valid keys for the options array are:
+     *     indexfiles => File indexing is enabled if true.
+     *
      * @param \stdClass $record A record containing, at least, the indexed document id and a modified timestamp
+     * @param array    $options
      * @return \core_search\document
      */
-    abstract public function get_document($record);
+    abstract public function get_document($record, $options = array());
+
+    /**
+     * Add any files to the document that should be indexed.
+     *
+     * @param document $document The current document
+     * @param stdClass $record The db record for the current document
+     * @return void
+     */
+    protected function attach_files($document, $record) {
+        return;
+    }
 
     /**
      * Can the current user see the document.

@@ -43,9 +43,10 @@ class activity extends \core_search\area\base_activity {
      * description field is not.
      *
      * @param stdClass $record
+     * @param array    $options
      * @return \core_search\document
      */
-    public function get_document($record) {
+    public function get_document($record, $options = array()) {
 
         try {
             $cm = $this->get_cm($this->get_module_name(), $record->id, $record->course);

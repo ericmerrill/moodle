@@ -73,9 +73,10 @@ class post extends \core_search\area\base_mod {
      * Returns the document associated with this post id.
      *
      * @param stdClass $record Post info.
+     * @param array    $options
      * @return \core_search\document
      */
-    public function get_document($record) {
+    public function get_document($record, $options = array()) {
 
         try {
             $cm = $this->get_cm('forum', $record->forumid, $record->courseid);
@@ -101,7 +102,31 @@ class post extends \core_search\area\base_mod {
         $doc->set('userid', $record->userid);
         $doc->set('modified', $record->modified);
 
+        if (!empty($options['indexfiles'])) {
+            $this->attach_files($doc, $record);
+        }
+
         return $doc;
+    }
+
+    /**
+     * Add the forum post attachments.
+     *
+     * @param document $document The current document
+     * @param stdClass $record The db record for the current document
+     * @return null
+     */
+    protected function attach_files($document, $record) {
+        $fs = get_file_storage();
+
+        $cm = $this->get_cm('forum', $record->forumid, $record->courseid);
+        $context = \context_module::instance($cm->id);
+
+        $files = $fs->get_area_files($context->id, 'mod_forum', 'attachment', $record->id, "filename", false);
+
+        foreach ($files as $file) {
+            $document->add_stored_file($file);
+        }
     }
 
     /**

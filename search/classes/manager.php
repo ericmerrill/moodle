@@ -43,6 +43,11 @@ class manager {
     const TYPE_TEXT = 1;
 
     /**
+     * @var int File contents.
+     */
+    const TYPE_FILE = 2;
+
+    /**
      * @var int User can not access the document.
      */
     const ACCESS_DENIED = 0;
@@ -399,7 +404,7 @@ class manager {
 
         // Look for cached results before executing it.
         if ($results = $cache->get($querykey)) {
-            return $results;
+//            return $results;
         }
 
         // Clears previous query errors.
@@ -501,23 +506,17 @@ class manager {
             $recordset = $searcharea->get_recordset_by_timestamp($prevtimestart);
 
             // Pass get_document as callback.
-            $iterator = new \core\dml\recordset_walk($recordset, array($searcharea, 'get_document'));
+            $options = array('indexfiles' => $this->engine->file_indexing_enabled());
+            $iterator = new \core\dml\recordset_walk($recordset, array($searcharea, 'get_document'), $options);
             foreach ($iterator as $document) {
-
                 if (!$document instanceof \core_search\document) {
                     continue;
                 }
 
-                $docdata = $document->export_for_engine();
-                switch ($docdata['type']) {
-                    case static::TYPE_TEXT:
-                        $this->engine->add_document($docdata);
-                        $numdocs++;
-                        break;
-                    default:
-                        $numdocsignored++;
-                        $iterator->close();
-                        throw new \moodle_exception('doctypenotsupported', 'search');
+                if ($this->engine->add_document($document)) {
+                    $numdocs++;
+                } else {
+                    $numdocsignored++;
                 }
 
                 $lastindexeddoc = $document->get('modified');

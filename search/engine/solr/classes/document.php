@@ -74,4 +74,37 @@ class document extends \core_search\document {
     protected function get_text_format() {
         return FORMAT_MARKDOWN;
     }
+
+    /**
+     * Export the data for the given file in relation to this document.
+     *
+     * @param \stored_file $file The stored file we are talking about.
+     * @return array
+     */
+    public function export_file_for_engine($file) {
+        $data = $this->export_for_engine();
+
+        // Going to append the fileid to give it a unique id.
+        $data['id'] = $data['id'].'-file'.$file->get_id();
+        $data['type'] = \core_search\manager::TYPE_FILE;
+
+        // Truncating long description strings, they are being passed by URL.
+        // They are going to be indexed in the main record anyways.
+        // Content needs to be moved to tmpcontent, or it will be overwritten by the file.
+        $data['tmpcontent'] = \core_text::substr($data['content'], 0, 256);
+        unset($data['content']);
+
+        if (isset($data['description1'])) {
+            $data['description1'] = \core_text::substr($data['description1'], 0, 256);
+        }
+        if (isset($data['description2'])) {
+            $data['description2'] = \core_text::substr($data['description2'], 0, 256);
+        }
+
+        // Some additional data that may be useful.
+        $data['fileid'] = $file->get_id();
+        $data['filename'] = $file->get_filename();
+
+        return $data;
+    }
 }

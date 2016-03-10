@@ -44,7 +44,7 @@ class role_capabilities extends \core_search\area\base {
         return $DB->get_recordset_sql("SELECT id, contextid, roleid, capability FROM {role_capabilities} where timemodified >= ? and capability = ?", array($modifiedfrom, 'moodle/course:renameroles'));
     }
 
-    public function get_document($record) {
+    public function get_document($record, $options = array()) {
         global $USER;
 
         // Prepare associative array with data from DB.

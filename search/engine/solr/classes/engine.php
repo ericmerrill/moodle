@@ -56,6 +56,11 @@ class engine extends \core_search\engine {
     protected $client = null;
 
     /**
+     * @var \curl
+     */
+    protected $curl = null;
+
+    /**
      * @var array Fields that can be highlighted.
      */
     protected $highlightfields = array('content', 'description1', 'description2');
@@ -129,6 +134,12 @@ class engine extends \core_search\engine {
                 $query->addFilterQuery('contextid:(' . implode(' OR ', $allcontexts) . ')');
             }
         }
+
+        // Now group records by filegroupingid.
+        $query->setGroup(true);
+        $query->setGroupLimit(1);
+        $query->setGroupMain('true');
+        $query->addGroupField('filegroupingid');
 
         try {
             return $this->query_response($this->client->query($query));
@@ -295,11 +306,139 @@ class engine extends \core_search\engine {
      *
      * This does not commit to the search engine.
      *
-     * @param array $doc
+     * @param document $document
      * @return void
      */
-    public function add_document($doc) {
+    public function add_document($document) {
 
+        $docdata = $document->export_for_engine();
+        switch ($docdata['type']) {
+            case \core_search\manager::TYPE_TEXT:
+                $this->add_text_document($docdata);
+                break;
+            default:
+                return false;
+        }
+
+        // This will take care of updating all attached files in the index.
+        $this->process_document_files($document);
+
+        return true;
+    }
+
+    /**
+     * Get index the document, ensuring the index matches the current document files.
+     *
+     * @param document $document
+     */
+    protected function process_document_files($document) {
+        if (!$this->file_indexing_enabled()) {
+            return;
+        }
+
+        // Get the attached files and currently indexed files.
+        $files = $document->get_files();
+        $indexedfiles = $this->get_indexed_files($document);
+
+        // Go through each indexed file, we want to not index any stored ones, delete any missing ones.
+        foreach ($indexedfiles as $indexedfile) {
+            if (isset($files[$indexedfile->get('fileid')])) {
+                // If the file is already indexed, we can just remove it from the files array.
+                debugging('Skipping file '.$indexedfile->get('fileid'), DEBUG_DEVELOPER);
+                unset($files[$indexedfile->get('fileid')]);
+            } else {
+                // This means we have found a file that is no longer attached, so we need to delete from the index.
+                debugging('Deleting file '.$indexedfile->get('id'), DEBUG_DEVELOPER);
+                $this->get_search_client()->deleteById($indexedfile->get('id'));
+            }
+        }
+
+        // Now we can actually index all the remaining files.
+        foreach ($files as $file) {
+            debugging('Indexing file '.$file->get_id(), DEBUG_DEVELOPER);
+            $this->add_stored_file($document, $file);
+        }
+    }
+
+    /**
+     * Get all the currently indexed files for a particular document.
+     *
+     * @param document $document
+     * @return document[] An array of documents representing indexed files.
+     */
+    protected function get_indexed_files($document) {
+        // Build a custom query that will get any document files that are in our filegroupingid.
+        $query = new \SolrQuery();
+        $this->set_query($query, '*');
+        $this->add_fields($query);
+
+        $query->addFilterQuery('{!cache=false}filegroupingid:(' . $document->get('id') . ')');
+        $query->addFilterQuery('{!cache=false}type:(' . \core_search\manager::TYPE_FILE. ')');
+
+        try {
+            return $this->query_response($this->get_search_client()->query($query));
+        } catch (\SolrClientException $ex) {
+            debugging('Error executing the provided query: ' . $ex->getMessage(), DEBUG_DEVELOPER);
+            $this->queryerror = $ex->getMessage();
+            return array();
+        } catch (\SolrServerException $ex) {
+            debugging('Error executing the provided query: ' . $ex->getMessage(), DEBUG_DEVELOPER);
+            $this->queryerror = $ex->getMessage();
+            return array();
+        }
+    }
+
+    /**
+     * Adds a file to the search engine.
+     *
+     * @param array $filedoc
+     * @return void
+     */
+    protected function add_stored_file($document, $storedfile) {
+        // TODO filter files by type and size.
+
+        $filedoc = $document->export_file_for_engine($storedfile);
+
+        if ($filedoc['type'] != \core_search\manager::TYPE_FILE) {
+            throw new \core_search\engine_exception('enginewrongtypefile', 'search');
+        }
+
+        $curl = $this->get_curl_object();
+
+        // TODO build this url elsewhere. Used by schema too.
+        $url = $this->config->server_hostname;
+        $url .= ':'.(!empty($this->config->server_port) ? $this->config->server_port : '8983');
+        $url .= '/solr/' . $this->config->indexname;
+        $url = new \moodle_url($url.'/update/extract');
+
+        // Copy each key to the url with literal.
+        foreach ($filedoc as $key => $value) {
+            $url->param('literal.'.$key, $value);
+        }
+
+        // This moves tmpcontent back to the content spot, otherwise the file overwrites it.
+        $url->param('fmap.tmpcontent', 'content');
+
+        // This sets the true filename for Tika.
+        $url->param('resource.name', $storedfile->get_filename());
+
+        // Tell Solr/Tika the mime type.
+        $url->param('stream.type', $storedfile->get_mimetype());
+
+        // TODO - parse results for error, and catch/throw exceptions.
+        $strurl = $url->out(false);
+        $rr = $curl->post($strurl, array('myfile' => $storedfile));
+
+        print "<pre>";print_r($rr);print "</pre>";
+    }
+
+    /**
+     * Adds a text document to the search engine.
+     *
+     * @param array $filedoc
+     * @return void
+     */
+    protected function add_text_document($doc) {
         $solrdoc = new \SolrInputDocument();
         foreach ($doc as $field => $value) {
             $solrdoc->addField($field, $value);
@@ -348,6 +487,16 @@ class engine extends \core_search\engine {
      */
     public function optimize() {
         $this->get_search_client()->optimize(1, true, false);
+    }
+
+    /**
+     * Return true if file indexing is supported and enabled. False otherwise.
+     *
+     * @return bool
+     */
+    public function file_indexing_enabled() {
+        // TODO - add actual settings.
+        return true;
     }
 
     /**
@@ -456,5 +605,27 @@ class engine extends \core_search\engine {
         }
 
         return $this->client;
+    }
+
+    /**
+     * Returns a curl object for conntecting to solr.
+     *
+     * @return \curl
+     */
+    public function get_curl_object() {
+        if (!is_null($this->curl)) {
+            return $this->curl;
+        }
+
+        $this->curl = new \curl();
+
+        // TODO - we need handle all the SSL and cert options here.
+
+        if (!empty($this->config->server_username) && !empty($this->config->server_password)) {
+            $authorization = $this->config->server_username . ':' . $this->config->server_password;
+            $this->curl->setHeader('Authorization', 'Basic ' . base64_encode($authorization));
+        }
+
+        return $this->curl;
     }
 }

@@ -61,9 +61,10 @@ class entry extends \core_search\area\base_mod {
      * Returns the documents associated with this glossary entry id.
      *
      * @param stdClass $entry glossary entry.
+     * @param array    $options
      * @return \core_search\document
      */
-    public function get_document($entry) {
+    public function get_document($entry, $options = array()) {
         global $DB;
 
         $keywords = array();

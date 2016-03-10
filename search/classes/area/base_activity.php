@@ -68,9 +68,10 @@ abstract class base_activity extends base_mod {
      * default ones, or to fill description optional fields with extra stuff.
      *
      * @param stdClass $record
+     * @param array    $options
      * @return \core_search\document
      */
-    public function get_document($record) {
+    public function get_document($record, $options = array()) {
 
         try {
             $cm = $this->get_cm($this->get_module_name(), $record->id, $record->course);
@@ -94,6 +95,10 @@ abstract class base_activity extends base_mod {
         $doc->set('type', \core_search\manager::TYPE_TEXT);
         $doc->set('courseid', $record->course);
         $doc->set('modified', $record->{static::MODIFIED_FIELD_NAME});
+
+        if (!empty($options['indexfiles'])) {
+            $this->attach_files($doc, $record);
+        }
 
         return $doc;
     }

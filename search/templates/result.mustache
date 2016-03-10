@@ -38,6 +38,7 @@
     * userfullname
     * description1
     * description2
+    * filename
 
     Example context (json):
     {
@@ -64,6 +65,9 @@
     {{#description2}}
         <div class="result-content">{{{description2}}}</div>
     {{/description2}}
+    {{#filename}}
+        <div class="result-content">{{{filename}}}</div>
+    {{/filename}}
     <div class="result-context-info">
         <a href="{{{contexturl}}}">{{#str}}viewresultincontext, search{{/str}}</a> -
         <a href="{{{courseurl}}}">{{#str}}incourse, search, {{coursefullname}}{{/str}}</a>

@@ -69,6 +69,11 @@ class document implements \renderable, \templatable {
     protected $contentitemid = null;
 
     /**
+     * @var \stored_file[] An array of stored files to attach to the document.
+     */
+    protected $files = array();
+
+    /**
      * All required fields any doc should contain.
      *
      * We have to choose a format to specify field types, using solr format as we have to choose one and solr is the
@@ -152,6 +157,21 @@ class document implements \renderable, \templatable {
             'stored' => true,
             'indexed' => true
         ),
+        'filegroupingid' => array(
+            'type' => 'string',
+            'stored' => true,
+            'indexed' => true
+        ),
+        'fileid' => array(
+            'type' => 'string',
+            'stored' => true,
+            'indexed' => false
+        ),
+        'filename' => array(
+            'type' => 'string',
+            'stored' => true,
+            'indexed' => true
+        )
     );
 
     /**
@@ -171,6 +191,25 @@ class document implements \renderable, \templatable {
         $this->data['areaid'] = \core_search\manager::generate_areaid($componentname, $areaname);
         $this->data['id'] = $this->data['areaid'] . '-' . $itemid;
         $this->data['itemid'] = intval($itemid);
+    }
+
+    /**
+     * Add a stored file to the document.
+     *
+     * @param \stored_file $file The file to add
+     * @return void
+     */
+    public function add_stored_file($file) {
+        $this->files[$file->get_id()] = $file;
+    }
+
+    /**
+     * Returns the array of attached files.
+     *
+     * @return \stored_file[]
+     */
+    public function get_files() {
+        return $this->files;
     }
 
     /**
@@ -411,6 +450,11 @@ class document implements \renderable, \templatable {
             }
         }
 
+        // We want to set the filegroupingid to id if it isn't set.
+        if (!isset($data['filegroupingid'])) {
+            $data['filegroupingid'] = $data['id'];
+        }
+
         foreach (static::$optionalfields as $fieldname => $field) {
             if (!isset($data[$fieldname])) {
                 continue;
@@ -452,6 +496,7 @@ class document implements \renderable, \templatable {
             'contexturl' => $this->get_context_url(),
             'description1' => $this->is_set('description1') ? $this->format_text($this->get('description1')) : null,
             'description2' => $this->is_set('description2') ? $this->format_text($this->get('description2')) : null,
+            'filename' => $this->is_set('filename') ? $this->format_text($this->get('filename')) : null,
         ];
 
         if ($this->is_set('userid')) {

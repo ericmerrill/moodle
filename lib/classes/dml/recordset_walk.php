@@ -97,12 +97,11 @@ class recordset_walk implements \Iterator {
         if (!$record = $this->recordset->current()) {
             return false;
         }
-
         // Apply callback and return.
         if ($this->callbackextra) {
-            return call_user_func($this->callback, $record);
+            return call_user_func($this->callback, $record,  $this->callbackextra);
         } else {
-            return call_user_func($this->callback, $record, $this->callbackextra);
+            return call_user_func($this->callback, $record);
         }
     }
 
