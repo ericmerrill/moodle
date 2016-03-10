@@ -78,16 +78,15 @@ class schema {
             throw new \moodle_exception('missingconfig', 'search_solr');
         }
 
-        $this->curl = new \curl();
+        $engine = new engine();
+        $this->curl = $engine->get_curl_object();
 
         // HTTP headers.
         $this->curl->setHeader('Content-type: application/json');
-        if (!empty($this->config->server_username) && !empty($this->config->server_password)) {
-            $authorization = $this->config->server_username . ':' . $this->config->server_password;
-            $this->curl->setHeader('Authorization', 'Basic ' . base64_encode($authorization));
-        }
 
-        $this->url = rtrim($this->config->server_hostname, '/');
+        // Must use the proper protocol, or SSL will fail.
+        $protocol = !empty($this->config->secure) ? 'https' : 'http';
+        $this->url = $protocol . '://' . rtrim($this->config->server_hostname, '/');
         if (!empty($this->config->server_port)) {
             $this->url .= ':' . $this->config->server_port;
         }
