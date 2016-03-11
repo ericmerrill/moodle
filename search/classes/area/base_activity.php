@@ -61,6 +61,17 @@ abstract class base_activity extends base_mod {
     }
 
     /**
+     * Returns a single record for the provided record id.
+     *
+     * @param int The id to search for.
+     * @return stdClass|false
+     */
+    public function get_record_for_id($id) {
+        global $DB;
+        return $DB->get_record($this->get_module_name(), array('id' => $id));
+    }
+
+    /**
      * Returns the document associated with this activity.
      *
      * This default implementation for activities sets the activity name to title and the activity intro to

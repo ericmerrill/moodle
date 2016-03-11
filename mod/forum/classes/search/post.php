@@ -65,8 +65,25 @@ class post extends \core_search\area\base_mod {
                   FROM {forum_posts} fp
                   JOIN {forum_discussions} fd ON fd.id = fp.discussion
                   JOIN {forum} f ON f.id = fd.forum
-                WHERE fp.modified >= ? ORDER BY fp.modified ASC';
+                 WHERE fp.modified >= ? ORDER BY fp.modified ASC';
         return $DB->get_recordset_sql($sql, array($modifiedfrom));
+    }
+
+    /**
+     * Returns a single record for the provided record id.
+     *
+     * @param int The id to search for.
+     * @return stdClass|false
+     */
+    public function get_record_for_id($id) {
+        global $DB;
+
+        $sql = 'SELECT fp.*, f.id AS forumid, f.course AS courseid
+                  FROM {forum_posts} fp
+                  JOIN {forum_discussions} fd ON fd.id = fp.discussion
+                  JOIN {forum} f ON f.id = fd.forum
+                 WHERE fp.id = ?';
+        return $DB->get_record_sql($sql, array($id));
     }
 
     /**

@@ -58,6 +58,21 @@ class entry extends \core_search\area\base_mod {
     }
 
     /**
+     * Returns a single record for the provided record id.
+     *
+     * @param int The id to search for.
+     * @return stdClass|false
+     */
+    public function get_record_for_id($id) {
+        global $DB;
+
+        $sql = "SELECT ge.*, g.course FROM {glossary_entries} ge
+                  JOIN {glossary} g ON g.id = ge.glossaryid
+                WHERE ge.id = ?";
+        return $DB->get_recordset_sql($sql, array($id));
+    }
+
+    /**
      * Returns the documents associated with this glossary entry id.
      *
      * @param stdClass $entry glossary entry.

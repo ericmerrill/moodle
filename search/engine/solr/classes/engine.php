@@ -135,14 +135,16 @@ class engine extends \core_search\engine {
             }
         }
 
-        // Now group records by solr_filegroupingid.
-        $query->setGroup(true);
-        $query->setGroupLimit(1);
-        $query->setGroupMain('true');
-        $query->addGroupField('solr_filegroupingid');
-
         try {
-            return $this->query_response($this->client->query($query));
+            if ($this->file_indexing_enabled()) {
+                // Now group records by solr_filegroupingid. Limit to 3 results per group.
+                $query->setGroup(true);
+                $query->setGroupLimit(3);
+                $query->addGroupField('solr_filegroupingid');
+                return $this->grouped_files_query_response($this->client->query($query));
+            } else {
+                return $this->query_response($this->client->query($query));
+            }
         } catch (\SolrClientException $ex) {
             debugging('Error executing the provided query: ' . $ex->getMessage(), DEBUG_DEVELOPER);
             $this->queryerror = $ex->getMessage();
@@ -283,6 +285,90 @@ class engine extends \core_search\engine {
         return $docs;
     }
 
+
+    /**
+     * Processes grouped file results into documents, with attached matched files.
+     *
+     * @param object $queryresponse containing the response return from solr server
+     * @return array $results containing final results to be displayed.
+     */
+    protected function grouped_files_query_response($queryresponse) {
+        // TODO merge highlighting?
+        $response = $queryresponse->getResponse();
+
+        // If we can't find the grouping, or there are no matches in the grouping, return empty.
+        if (!isset($response->grouped->solr_filegroupingid) || empty($response->grouped->solr_filegroupingid->matches)) {
+            return array();
+        }
+
+        $docs = array();
+        $numgranted = 0;
+
+        // Each group represents a "master document" and will contain
+        $groups = $response->grouped->solr_filegroupingid->groups;
+        foreach ($groups as $group) {
+            $groupid = $group->groupValue;
+            $groupdocs = $group->doclist->docs;
+            $firstdoc = reset($groupdocs);
+
+            if (!$searcharea = $this->get_search_area($firstdoc->areaid)) {
+                // Well, this is a problem.
+                continue;
+            }
+
+            // Check for access.
+            $access = $searcharea->check_access($firstdoc->itemid);
+            switch ($access) {
+                case \core_search\manager::ACCESS_DELETED:
+                    // If deleted from Moodle, delete from index and then continue.
+                    $this->delete_by_id($firstdoc->id);
+                    continue 2;
+                    break;
+                case \core_search\manager::ACCESS_DENIED:
+                    // This means we should just skip for the current user.
+                    continue 2;
+                    break;
+            }
+            $numgranted++;
+
+            $maindoc = false;
+            $filedocs = array();
+            // Seperate the main document and any files returned.
+            foreach ($groupdocs as $groupdoc) {
+                if ($groupdoc->id == $groupid) {
+                    $maindoc = $groupdoc;
+                } else {
+                    $filedocs[] = $groupdoc;
+                }
+            }
+
+            if (!$maindoc) {
+                // If we don't have the main doc, we need to produce it.
+                // We prefer to build it locally for performance reasons, rather than hitting solr again.
+                $maindoc = $searcharea->get_document_for_id($firstdoc->itemid);
+                $docdata = $maindoc->export_for_engine();
+            } else {
+                $docdata = $this->standarize_solr_obj($maindoc);
+            }
+            $doc = $this->to_document($searcharea, $docdata);
+
+            // Now we need to attach the result files to the doc.
+            foreach ($filedocs as $filedoc) {
+                $doc->add_stored_file($filedoc->solr_fileid);
+            }
+
+            $docs[] = $doc;
+        }
+
+        // This should never happen.
+        if ($numgranted >= \core_search\manager::MAX_RESULTS) {
+            $docs = array_slice($docs, 0, \core_search\manager::MAX_RESULTS, true);
+            break;
+        }
+
+        return $docs;
+    }
+
     /**
      * Returns a standard php array from a \SolrObject instance.
      *
@@ -342,10 +428,10 @@ class engine extends \core_search\engine {
 
         // Go through each indexed file, we want to not index any stored ones, delete any missing ones.
         foreach ($indexedfiles as $indexedfile) {
-            if (isset($files[$indexedfile->get('fileid')])) {
+            if (isset($files[$indexedfile->get('solr_fileid')])) {
                 // If the file is already indexed, we can just remove it from the files array.
-                debugging('Skipping file '.$indexedfile->get('fileid'), DEBUG_DEVELOPER);
-                unset($files[$indexedfile->get('fileid')]);
+                debugging('Skipping file '.$indexedfile->get('solr_fileid'), DEBUG_DEVELOPER);
+                unset($files[$indexedfile->get('solr_fileid')]);
             } else {
                 // This means we have found a file that is no longer attached, so we need to delete from the index.
                 debugging('Deleting file '.$indexedfile->get('id'), DEBUG_DEVELOPER);
@@ -415,9 +501,6 @@ class engine extends \core_search\engine {
         foreach ($filedoc as $key => $value) {
             $url->param('literal.'.$key, $value);
         }
-
-        // This moves tmpcontent back to the content spot, otherwise the file overwrites it.
-        $url->param('fmap.tmpcontent', 'content');
 
         // This sets the true filename for Tika.
         $url->param('resource.name', $storedfile->get_filename());

@@ -156,16 +156,6 @@ class document implements \renderable, \templatable {
             'type' => 'string',
             'stored' => true,
             'indexed' => true
-        ),
-        'fileid' => array(
-            'type' => 'string',
-            'stored' => true,
-            'indexed' => false
-        ),
-        'filename' => array(
-            'type' => 'string',
-            'stored' => true,
-            'indexed' => true
         )
     );
 
@@ -203,11 +193,15 @@ class document implements \renderable, \templatable {
     /**
      * Add a stored file to the document.
      *
-     * @param \stored_file $file The file to add
+     * @param \stored_file|int $file The file to add, or file id.
      * @return void
      */
     public function add_stored_file($file) {
-        $this->files[$file->get_id()] = $file;
+        if (is_numeric($file)) {
+            $this->files[$file] = $file;
+        } else {
+            $this->files[$file->get_id()] = $file;
+        }
     }
 
     /**
@@ -216,6 +210,17 @@ class document implements \renderable, \templatable {
      * @return \stored_file[]
      */
     public function get_files() {
+        // The files array can contain stored file ids, so we need to get instances if asked.
+        foreach ($this->files as $id => $listfile) {
+            if (is_numeric($listfile)) {
+                $fs = get_file_storage();
+
+                if ($file = $fs->get_file_by_id($id)) {
+                    $this->files[$id] = $file;
+                }
+            }
+        }
+
         return $this->files;
     }
 
@@ -515,8 +520,16 @@ class document implements \renderable, \templatable {
             'contexturl' => $this->get_context_url(),
             'description1' => $this->is_set('description1') ? $this->format_text($this->get('description1')) : null,
             'description2' => $this->is_set('description2') ? $this->format_text($this->get('description2')) : null,
-            'filename' => $this->is_set('filename') ? $this->format_text($this->get('filename')) : null,
         ];
+
+        $files = $this->get_files();
+        $filenames = array();
+        if (!empty($files)) {
+            foreach ($files as $file) {
+                $filenames[] = $file->get_filename();
+            }
+        }
+        $data['filenames'] = $filenames;
 
         if ($this->is_set('userid')) {
             $data['userurl'] = new \moodle_url('/user/view.php', array('id' => $this->get('userid'), 'course' => $this->get('courseid')));

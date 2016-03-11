@@ -202,6 +202,14 @@ abstract class base {
     abstract public function get_recordset_by_timestamp($modifiedfrom = 0);
 
     /**
+     * Returns a single record for the provided record id.
+     *
+     * @param int The id to search for.
+     * @return stdClass|false
+     */
+    abstract public function get_record_for_id($id);
+
+    /**
      * Returns the document related with the provided record.
      *
      * This method receives a record with the document id and other info returned by get_recordset_by_timestamp
@@ -217,10 +225,27 @@ abstract class base {
      *     indexfiles => File indexing is enabled if true.
      *
      * @param \stdClass $record A record containing, at least, the indexed document id and a modified timestamp
-     * @param array    $options
+     * @param array     $options Options for document creation
      * @return \core_search\document
      */
     abstract public function get_document($record, $options = array());
+
+    /**
+     * Returns a single document for the provided record id.
+     *
+     * Options is the same as for {@link get_document}
+     *
+     * @param int   $id The id to search for
+     * @param array $options Options for document creation
+     * @return stdClass|false
+     */
+    public function get_document_for_id($id, $options = array()) {
+        if (!$record = $this->get_record_for_id($id)) {
+            return false;
+        }
+
+        return $this->get_document($record, $options);
+    }
 
     /**
      * Add any files to the document that should be indexed.

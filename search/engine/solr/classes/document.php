@@ -47,6 +47,11 @@ class document extends \core_search\document {
             'type' => 'string',
             'stored' => true,
             'indexed' => true
+        ),
+        'solr_fileid' => array(
+            'type' => 'string',
+            'stored' => true,
+            'indexed' => false
         )
     );
 
@@ -114,26 +119,14 @@ class document extends \core_search\document {
     public function export_file_for_engine($file) {
         $data = $this->export_for_engine();
 
+        // Content is index in the main document.
+        unset($data['content']);
+
         // Going to append the fileid to give it a unique id.
         $data['id'] = $data['id'].'-file'.$file->get_id();
         $data['type'] = \core_search\manager::TYPE_FILE;
-
-        // Truncating long description strings, they are being passed by URL.
-        // They are going to be indexed in the main record anyways.
-        // Content needs to be moved to tmpcontent, or it will be overwritten by the file.
-        $data['tmpcontent'] = \core_text::substr($data['content'], 0, 256);
-        unset($data['content']);
-
-        if (isset($data['description1'])) {
-            $data['description1'] = \core_text::substr($data['description1'], 0, 256);
-        }
-        if (isset($data['description2'])) {
-            $data['description2'] = \core_text::substr($data['description2'], 0, 256);
-        }
-
-        // Some additional data that may be useful.
-        $data['fileid'] = $file->get_id();
-        $data['filename'] = $file->get_filename();
+        $data['solr_fileid'] = $file->get_id();
+        $data['title'] = $file->get_filename();
 
         return $data;
     }
