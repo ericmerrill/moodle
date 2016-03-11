@@ -157,11 +157,6 @@ class document implements \renderable, \templatable {
             'stored' => true,
             'indexed' => true
         ),
-        'filegroupingid' => array(
-            'type' => 'string',
-            'stored' => true,
-            'indexed' => true
-        ),
         'fileid' => array(
             'type' => 'string',
             'stored' => true,
@@ -173,6 +168,18 @@ class document implements \renderable, \templatable {
             'indexed' => true
         )
     );
+
+    /**
+     * Any fields that are engine specifc. These are fields that are solely used by a search engine plugin
+     * for internal purposes.
+     *
+     * Field names should be prefixed with engine name to avoid potential conflict with core fields.
+     *
+     * Uses same format as other fields above.
+     *
+     * @var array
+     */
+    protected static $enginefields = array();
 
     /**
      * We ensure that the document has a unique id across search areas.
@@ -231,6 +238,8 @@ class document implements \renderable, \templatable {
             $fielddata = static::$requiredfields[$fieldname];
         } else if (!empty(static::$optionalfields[$fieldname])) {
             $fielddata = static::$optionalfields[$fieldname];
+        } else if (!empty(static::$enginefields[$fieldname])) {
+            $fielddata = static::$enginefields[$fieldname];
         }
 
         if (empty($fielddata)) {
@@ -308,7 +317,7 @@ class document implements \renderable, \templatable {
      * @return array
      */
     public static function get_default_fields_definition() {
-        return static::$requiredfields + static::$optionalfields;
+        return static::$requiredfields + static::$optionalfields + static::$enginefields;
     }
 
     /**
@@ -371,7 +380,7 @@ class document implements \renderable, \templatable {
      * @return void
      */
     public function set_data_from_engine($docdata) {
-        $fields = static::$requiredfields + static::$optionalfields;
+        $fields = static::$requiredfields + static::$optionalfields + static::$enginefields;
         foreach ($fields as $fieldname => $field) {
 
             // Optional params might not be there.
@@ -429,6 +438,8 @@ class document implements \renderable, \templatable {
      * @return array
      */
     public function export_for_engine() {
+        // Set any unset defaults.
+        $this->apply_defaults();
 
         // We don't want to affect the document instance.
         $data = $this->data;
@@ -450,12 +461,8 @@ class document implements \renderable, \templatable {
             }
         }
 
-        // We want to set the filegroupingid to id if it isn't set.
-        if (!isset($data['filegroupingid'])) {
-            $data['filegroupingid'] = $data['id'];
-        }
-
-        foreach (static::$optionalfields as $fieldname => $field) {
+        $fields = static::$optionalfields + static::$enginefields;
+        foreach ($fields as $fieldname => $field) {
             if (!isset($data[$fieldname])) {
                 continue;
             }
@@ -469,6 +476,18 @@ class document implements \renderable, \templatable {
         }
 
         return $data;
+    }
+
+    /**
+     * Apply any defaults to unset fields before export. Called after document building, but before export.
+     *
+     * Sub-classes of this should make sure to call parent::apply_defaults().
+     */
+    protected function apply_defaults() {
+        // Set the default type, TYPE_TEXT.
+        if (!isset($this->data['type'])) {
+            $this->data['type'] = manager::TYPE_TEXT;
+        }
     }
 
     /**

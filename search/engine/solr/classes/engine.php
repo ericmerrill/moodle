@@ -135,11 +135,11 @@ class engine extends \core_search\engine {
             }
         }
 
-        // Now group records by filegroupingid.
+        // Now group records by solr_filegroupingid.
         $query->setGroup(true);
         $query->setGroupLimit(1);
         $query->setGroupMain('true');
-        $query->addGroupField('filegroupingid');
+        $query->addGroupField('solr_filegroupingid');
 
         try {
             return $this->query_response($this->client->query($query));
@@ -367,12 +367,12 @@ class engine extends \core_search\engine {
      * @return document[] An array of documents representing indexed files.
      */
     protected function get_indexed_files($document) {
-        // Build a custom query that will get any document files that are in our filegroupingid.
+        // Build a custom query that will get any document files that are in our solr_filegroupingid.
         $query = new \SolrQuery();
         $this->set_query($query, '*');
         $this->add_fields($query);
 
-        $query->addFilterQuery('{!cache=false}filegroupingid:(' . $document->get('id') . ')');
+        $query->addFilterQuery('{!cache=false}solr_filegroupingid:(' . $document->get('id') . ')');
         $query->addFilterQuery('{!cache=false}type:(' . \core_search\manager::TYPE_FILE. ')');
 
         try {

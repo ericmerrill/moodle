@@ -35,6 +35,22 @@ defined('MOODLE_INTERNAL') || die();
 class document extends \core_search\document {
 
     /**
+     * Any fields that are engine specifc. These are fields that are solely used by a seach engine plugin
+     * for internal purposes.
+     *
+     * Uses same format as other fields above.
+     *
+     * @var array
+     */
+    protected static $enginefields = array(
+        'solr_filegroupingid' => array(
+            'type' => 'string',
+            'stored' => true,
+            'indexed' => true
+        )
+    );
+
+    /**
      * Formats the timestamp according to the search engine needs.
      *
      * @param int $timestamp
@@ -73,6 +89,20 @@ class document extends \core_search\document {
      */
     protected function get_text_format() {
         return FORMAT_MARKDOWN;
+    }
+
+    /**
+     * Apply any defaults to unset fields before export. Called after document building, but before export.
+     *
+     * Sub-classes of this should make sure to call parent::apply_defaults().
+     */
+    protected function apply_defaults() {
+        parent::apply_defaults();
+
+        // We want to set the solr_filegroupingid to id if it isn't set.
+        if (!isset($this->data['solr_filegroupingid'])) {
+            $this->data['solr_filegroupingid'] = $this->data['id'];
+        }
     }
 
     /**
