@@ -113,7 +113,7 @@ class entry extends \core_search\area\base_mod {
         $doc->set('userid', $entry->userid);
         $doc->set('modified', $entry->timemodified);
 
-        if ($options['lastindexedtime'] < $record->timecreated) {
+        if (isset($options['lastindexedtime']) && $options['lastindexedtime'] < $record->timecreated) {
             // If the document was created after the last index time, it must be new.
             $doc->set_is_new(true);
         }

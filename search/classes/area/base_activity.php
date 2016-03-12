@@ -115,8 +115,9 @@ abstract class base_activity extends base_mod {
         $doc->set('courseid', $record->course);
         $doc->set('modified', $record->{static::MODIFIED_FIELD_NAME});
 
-        if (!empty(static::CREATED_FIELD_NAME)) {
-            if ($options['lastindexedtime'] < $record->{static::CREATED_FIELD_NAME}) {
+        $createdfield = static::CREATED_FIELD_NAME;
+        if (!empty($createdfield) && isset($options['lastindexedtime'])) {
+            if ($options['lastindexedtime'] < $record->{$createdfield}) {
                 // If the document was created after the last index time, it must be new.
                 $doc->set_is_new(true);
             }

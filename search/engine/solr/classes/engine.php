@@ -363,7 +363,6 @@ class engine extends \core_search\engine {
         // This should never happen.
         if ($numgranted >= \core_search\manager::MAX_RESULTS) {
             $docs = array_slice($docs, 0, \core_search\manager::MAX_RESULTS, true);
-            break;
         }
 
         return $docs;
@@ -596,7 +595,8 @@ class engine extends \core_search\engine {
      * @return void
      */
     public function delete_by_id($id) {
-        $this->get_search_client()->deleteById($id);
+        // We need to make sure we delete the item and all related files, whichc an be done with solr_filegroupingid.
+        $this->get_search_client()->deleteByQuery('solr_filegroupingid:' . $id);
         $this->commit();
     }
 

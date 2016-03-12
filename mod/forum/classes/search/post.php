@@ -119,7 +119,7 @@ class post extends \core_search\area\base_mod {
         $doc->set('userid', $record->userid);
         $doc->set('modified', $record->modified);
 
-        if ($options['lastindexedtime'] < $record->created) {
+        if (isset($options['lastindexedtime']) && $options['lastindexedtime'] < $record->created) {
             // If the document was created after the last index time, it must be new.
             $doc->set_is_new(true);
         }
