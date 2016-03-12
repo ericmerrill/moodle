@@ -186,6 +186,24 @@ abstract class base {
     }
 
     /**
+     * Returns true if this area supports file indexing.
+     *
+     * @return bool
+     */
+    public function supports_file_indexing() {
+        return false;
+    }
+
+    /**
+     * Returns true if this area uses file indexing.
+     *
+     * @return bool
+     */
+    public function uses_file_indexing() {
+        return false;
+    }
+
+    /**
      * Returns a recordset ordered by modification date ASC.
      *
      * Each record can include any data self::get_document might need but it must:

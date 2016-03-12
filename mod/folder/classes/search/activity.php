@@ -34,6 +34,23 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class activity extends \core_search\area\base_activity {
+    /**
+     * Returns true if this area supports file indexing.
+     *
+     * @return bool
+     */
+    public function supports_file_indexing() {
+        return true;
+    }
+
+    /**
+     * Returns true if this area uses file indexing.
+     *
+     * @return bool
+     */
+    public function uses_file_indexing() {
+        return true;
+    }
 
     /**
      * Add all the folder files to the index.

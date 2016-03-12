@@ -344,9 +344,10 @@ abstract class engine {
      * Adds a document to the search engine.
      *
      * @param document $document
+     * @param bool     $fileindexing True if file indexing is to be used
      * @return void
      */
-    abstract function add_document($document);
+    abstract function add_document($document, $fileindexing = false);
 
     /**
      * Executes the query on the engine.

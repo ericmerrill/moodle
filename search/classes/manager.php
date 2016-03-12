@@ -506,14 +506,17 @@ class manager {
             $recordset = $searcharea->get_recordset_by_timestamp($prevtimestart);
 
             // Pass get_document as callback.
-            $options = array('indexfiles' => $this->engine->file_indexing_enabled());
+            $fileindexing = $this->engine->file_indexing_enabled() &&
+                            $searcharea->supports_file_indexing() &&
+                            $searcharea->uses_file_indexing();
+            $options = array('indexfiles' => $fileindexing);
             $iterator = new \core\dml\recordset_walk($recordset, array($searcharea, 'get_document'), $options);
             foreach ($iterator as $document) {
                 if (!$document instanceof \core_search\document) {
                     continue;
                 }
 
-                if ($this->engine->add_document($document)) {
+                if ($this->engine->add_document($document, $fileindexing)) {
                     $numdocs++;
                 } else {
                     $numdocsignored++;

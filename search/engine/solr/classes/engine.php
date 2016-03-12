@@ -393,9 +393,10 @@ class engine extends \core_search\engine {
      * This does not commit to the search engine.
      *
      * @param document $document
+     * @param bool     $fileindexing True if file indexing is to be used
      * @return void
      */
-    public function add_document($document) {
+    public function add_document($document, $fileindexing = false) {
 
         $docdata = $document->export_for_engine();
         switch ($docdata['type']) {
@@ -406,8 +407,10 @@ class engine extends \core_search\engine {
                 return false;
         }
 
-        // This will take care of updating all attached files in the index.
-        $this->process_document_files($document);
+        if ($fileindexing) {
+            // This will take care of updating all attached files in the index.
+            $this->process_document_files($document);
+        }
 
         return true;
     }
