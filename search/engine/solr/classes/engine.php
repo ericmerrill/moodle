@@ -433,10 +433,25 @@ class engine extends \core_search\engine {
 
             // Go through each indexed file, we want to not index any stored ones, delete any missing ones.
             foreach ($indexedfiles as $indexedfile) {
-                if (isset($files[$indexedfile->get('solr_fileid')])) {
-                    // If the file is already indexed, we can just remove it from the files array.
-                    debugging('Skipping file '.$indexedfile->get('solr_fileid'), DEBUG_DEVELOPER);
-                    unset($files[$indexedfile->get('solr_fileid')]);
+                $fileid = $indexedfile->get('solr_fileid');
+                if (isset($files[$fileid])) {
+                    if ($indexedfile->get('modified') < $files[$fileid]->get_timemodified()) {
+                        // If the file has been modified since it was indexed, just leave it for re-indexing.
+                        continue;
+                    }
+                    // Filelib does not guarantee time modified is updated, so we will check important values.
+                    if (strcmp($indexedfile->get('title'), $files[$fileid]->get_filename()) !== 0) {
+                        // Check if the filename has changed, since it is an indexed field.
+                        continue;
+                    }
+                    if ($indexedfile->get('solr_filecontenthash') != $files[$fileid]->get_contenthash()) {
+                        // If the stored content hash doesn't match, update the indexing.
+                        continue;
+                    }
+
+                    // If the file is already indexed, we can just remove it from the files array and skip it.
+                    debugging('Skipping file '.$fileid, DEBUG_DEVELOPER);
+                    unset($files[$fileid]);
                 } else {
                     // This means we have found a file that is no longer attached, so we need to delete from the index.
                     debugging('Deleting file '.$indexedfile->get('id'), DEBUG_DEVELOPER);

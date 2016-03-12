@@ -545,6 +545,7 @@ class document implements \renderable, \templatable {
             'description2' => $this->is_set('description2') ? $this->format_text($this->get('description2')) : null,
         ];
 
+        // Now take any attached files and convert to an array of filenames.
         $files = $this->get_files();
         $filenames = array();
         if (!empty($files)) {

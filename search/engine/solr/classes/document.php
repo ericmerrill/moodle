@@ -52,7 +52,12 @@ class document extends \core_search\document {
             'type' => 'string',
             'stored' => true,
             'indexed' => false
-        )
+        ),
+        'solr_filecontenthash' => array(
+            'type' => 'string',
+            'stored' => true,
+            'indexed' => false
+        ),
     );
 
     /**
@@ -126,6 +131,7 @@ class document extends \core_search\document {
         $data['id'] = $data['id'].'-file'.$file->get_id();
         $data['type'] = \core_search\manager::TYPE_FILE;
         $data['solr_fileid'] = $file->get_id();
+        $data['solr_filecontenthash'] = $file->get_contenthash();
         $data['title'] = $file->get_filename();
 
         return $data;
