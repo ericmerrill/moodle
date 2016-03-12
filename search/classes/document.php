@@ -69,6 +69,11 @@ class document implements \renderable, \templatable {
     protected $contentitemid = null;
 
     /**
+     * @var bool Should be set to true if document hasn't been indexed before. False if unknown.
+     */
+    protected $isnew = false;
+
+    /**
      * @var \stored_file[] An array of stored files to attach to the document.
      */
     protected $files = array();
@@ -314,6 +319,24 @@ class document implements \renderable, \templatable {
      */
     public function is_set($field) {
         return (isset($this->data[$field]) || isset($this->extradata[$field]));
+    }
+
+    /**
+     * Set if this is a new document. False if unknown.
+     *
+     * @param bool $new
+     */
+    public function set_is_new($new) {
+       $this->isnew = (bool)$new;
+    }
+
+    /**
+     * Returns if the document is new. False if unknown.
+     *
+     * @return bool
+     */
+    public function get_is_new() {
+       return $this->isnew;
     }
 
     /**

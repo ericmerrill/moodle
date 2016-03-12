@@ -509,7 +509,8 @@ class manager {
             $fileindexing = $this->engine->file_indexing_enabled() &&
                             $searcharea->supports_file_indexing() &&
                             $searcharea->uses_file_indexing();
-            $options = array('indexfiles' => $fileindexing);
+            $options = array('indexfiles' => $fileindexing,
+                             'lastindexedtime' => $prevtimestart); // TODO - do we want to do this with fullindex?
             $iterator = new \core\dml\recordset_walk($recordset, array($searcharea, 'get_document'), $options);
             foreach ($iterator as $document) {
                 if (!$document instanceof \core_search\document) {

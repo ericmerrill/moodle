@@ -241,6 +241,7 @@ abstract class base {
      *
      * Valid keys for the options array are:
      *     indexfiles => File indexing is enabled if true.
+     *     lastindexedtime => The last time this area was indexed.
      *
      * @param \stdClass $record A record containing, at least, the indexed document id and a modified timestamp
      * @param array     $options Options for document creation

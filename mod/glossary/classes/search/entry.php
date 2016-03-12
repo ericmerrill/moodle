@@ -113,6 +113,11 @@ class entry extends \core_search\area\base_mod {
         $doc->set('userid', $entry->userid);
         $doc->set('modified', $entry->timemodified);
 
+        if ($options['lastindexedtime'] < $record->timecreated) {
+            // If the document was created after the last index time, it must be new.
+            $doc->set_is_new(true);
+        }
+
         // Adding keywords as extra info.
         if ($keywords) {
             $doc->set('description1', implode(' ' , $keywords));

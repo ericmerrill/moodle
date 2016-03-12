@@ -44,6 +44,14 @@ abstract class base_activity extends base_mod {
     const MODIFIED_FIELD_NAME = 'timemodified';
 
     /**
+     * @var string The time created field name.
+     *
+     * Activities not using timecreated as field name
+     * can overwrite this constant.
+     */
+    const CREATED_FIELD_NAME = '';
+
+    /**
      * The context levels the search area is working on.
      * @var array
      */
@@ -106,6 +114,13 @@ abstract class base_activity extends base_mod {
         $doc->set('type', \core_search\manager::TYPE_TEXT);
         $doc->set('courseid', $record->course);
         $doc->set('modified', $record->{static::MODIFIED_FIELD_NAME});
+
+        if (!empty(static::CREATED_FIELD_NAME)) {
+            if ($options['lastindexedtime'] < $record->{static::CREATED_FIELD_NAME}) {
+                // If the document was created after the last index time, it must be new.
+                $doc->set_is_new(true);
+            }
+        }
 
         if (!empty($options['indexfiles'])) {
             $this->attach_files($doc, $record);

@@ -427,18 +427,22 @@ class engine extends \core_search\engine {
 
         // Get the attached files and currently indexed files.
         $files = $document->get_files();
-        $indexedfiles = $this->get_indexed_files($document);
 
-        // Go through each indexed file, we want to not index any stored ones, delete any missing ones.
-        foreach ($indexedfiles as $indexedfile) {
-            if (isset($files[$indexedfile->get('solr_fileid')])) {
-                // If the file is already indexed, we can just remove it from the files array.
-                debugging('Skipping file '.$indexedfile->get('solr_fileid'), DEBUG_DEVELOPER);
-                unset($files[$indexedfile->get('solr_fileid')]);
-            } else {
-                // This means we have found a file that is no longer attached, so we need to delete from the index.
-                debugging('Deleting file '.$indexedfile->get('id'), DEBUG_DEVELOPER);
-                $this->get_search_client()->deleteById($indexedfile->get('id'));
+        // If this isn't a new document, we need to check the exiting indexed files.
+        if (!$document->get_is_new()) {
+            $indexedfiles = $this->get_indexed_files($document);
+
+            // Go through each indexed file, we want to not index any stored ones, delete any missing ones.
+            foreach ($indexedfiles as $indexedfile) {
+                if (isset($files[$indexedfile->get('solr_fileid')])) {
+                    // If the file is already indexed, we can just remove it from the files array.
+                    debugging('Skipping file '.$indexedfile->get('solr_fileid'), DEBUG_DEVELOPER);
+                    unset($files[$indexedfile->get('solr_fileid')]);
+                } else {
+                    // This means we have found a file that is no longer attached, so we need to delete from the index.
+                    debugging('Deleting file '.$indexedfile->get('id'), DEBUG_DEVELOPER);
+                    $this->get_search_client()->deleteById($indexedfile->get('id'));
+                }
             }
         }
 
