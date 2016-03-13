@@ -87,7 +87,13 @@ class engine extends \core_search\engine {
         }
 
         $query = new \SolrQuery();
-        $this->set_query($query, $data->q);
+
+        $maxrows = \core_search\manager::MAX_RESULTS;
+        if ($this->file_indexing_enabled()) {
+            // When using file indexing and grouping, we are going to collapse retults, so we need may need many more back.
+            $maxrows *= 3;
+        }
+        $this->set_query($query, $data->q, $maxrows);
         $this->add_fields($query);
 
         // Search filters applied, we don't cache these filters as we don't want to pollute the cache with tmp filters
@@ -160,9 +166,13 @@ class engine extends \core_search\engine {
     /**
      * Prepares a new query by setting the query, start offset and rows to return.
      * @param SolrQuery $query
-     * @param object $q Containing query and filters.
+     * @param object    $q Containing query and filters.
+     * @param null|int  $maxresults The number of results to limit. manager::MAX_RESULTS if not set.
      */
-    protected function set_query($query, $q) {
+    protected function set_query($query, $q, $maxresults = null) {
+        if (!is_numeric($maxresults)) {
+            $maxresults = \core_search\manager::MAX_RESULTS;
+        }
 
         // Set hightlighting.
         $query->setHighlight(true);
@@ -176,7 +186,7 @@ class engine extends \core_search\engine {
         $query->setQuery($q);
 
         // A reasonable max.
-        $query->setRows(\core_search\manager::MAX_RESULTS);
+        $query->setRows($maxresults);
     }
 
     /**
@@ -358,6 +368,11 @@ class engine extends \core_search\engine {
             }
 
             $docs[] = $doc;
+
+            if ($numgranted > \core_search\manager::MAX_RESULTS) {
+                // We have hit the max results, we will just ignore the rest.
+                break;
+            }
         }
 
         // This should never happen.
@@ -476,7 +491,10 @@ class engine extends \core_search\engine {
     protected function get_indexed_files($document) {
         // Build a custom query that will get any document files that are in our solr_filegroupingid.
         $query = new \SolrQuery();
-        $this->set_query($query, '*');
+
+        // We want to get all file records tied to a document.
+        // If there are more than 500 on a doc, then we may re-index unnecessarily, or not delete removed files.
+        $this->set_query($query, '*', 500);
         $this->add_fields($query);
 
         $query->addFilterQuery('{!cache=false}solr_filegroupingid:(' . $document->get('id') . ')');
