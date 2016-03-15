@@ -477,9 +477,43 @@ class engine extends \core_search\engine {
 
         // Now we can actually index all the remaining files.
         foreach ($files as $file) {
-            debugging('Indexing file '.$file->get_id(), DEBUG_DEVELOPER);
-            $this->add_stored_file($document, $file);
+            if ($this->file_is_indexable($file)) {
+                debugging('Indexing file '.$file->get_id(), DEBUG_DEVELOPER);
+                $this->add_stored_file($document, $file);
+            } else {
+                debugging('Unindexable file '.$file->get_id(), DEBUG_DEVELOPER);
+            }
         }
+    }
+
+    /**
+     * Checks to see if a passed file is indexable.
+     *
+     * @param \stored_file $file The file to check
+     * @return bool True if the file can be indexed
+     */
+    protected function file_is_indexable($file) {
+        if ($file->get_filesize() > ($this->config->maxindexfilekb * 1024)) {
+            return false;
+        }
+
+        $mime = $file->get_mimetype();
+
+        // Check for unknown files.
+        if ($mime == 'document/unknown') {
+            if ($this->config->indexunknownfiles) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        if ($mime == 'application/vnd.moodle.backup') {
+            // We don't index Moodle backup files. There is nothing usefully indexable in them.
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -617,8 +651,7 @@ class engine extends \core_search\engine {
      * @return bool
      */
     public function file_indexing_enabled() {
-        // TODO - add actual settings.
-        return true;
+        return (bool)$this->config->fileindexing;
     }
 
     /**
