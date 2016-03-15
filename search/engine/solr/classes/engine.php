@@ -300,11 +300,31 @@ class engine extends \core_search\engine {
      *
      * This does not commit to the search engine.
      *
-     * @param array $doc
+     * @param array $document
+     * @param bool     $fileindexing True if file indexing is to be used
      * @return void
      */
-    public function add_document($doc) {
+    public function add_document($document, $fileindexing = false) {
 
+        $docdata = $document->export_for_engine();
+        switch ($docdata['type']) {
+            case \core_search\manager::TYPE_TEXT:
+                $this->add_text_document($docdata);
+                break;
+            default:
+                return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Adds a text document to the search engine.
+     *
+     * @param array $filedoc
+     * @return void
+     */
+    protected function add_text_document($doc) {
         $solrdoc = new \SolrInputDocument();
         foreach ($doc as $field => $value) {
             $solrdoc->addField($field, $value);

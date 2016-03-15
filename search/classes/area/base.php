@@ -186,6 +186,15 @@ abstract class base {
     }
 
     /**
+     * Returns true if this area uses file indexing.
+     *
+     * @return bool
+     */
+    public function uses_file_indexing() {
+        return false;
+    }
+
+    /**
      * Returns a recordset ordered by modification date ASC.
      *
      * Each record can include any data self::get_document might need but it must:
@@ -202,6 +211,14 @@ abstract class base {
     abstract public function get_recordset_by_timestamp($modifiedfrom = 0);
 
     /**
+     * Returns a single record for the provided record id.
+     *
+     * @param int The id to search for.
+     * @return stdClass|false
+     */
+    abstract public function get_record_for_id($id);
+
+    /**
      * Returns the document related with the provided record.
      *
      * This method receives a record with the document id and other info returned by get_recordset_by_timestamp
@@ -213,10 +230,43 @@ abstract class base {
      * Search areas should send plain text to the search engine, use the following function to convert any user
      * input data to plain text: {@link content_to_text}
      *
+     * Valid keys for the options array are:
+     *     indexfiles => File indexing is enabled if true.
+     *     lastindexedtime => The last time this area was indexed.
+     *
      * @param \stdClass $record A record containing, at least, the indexed document id and a modified timestamp
+     * @param array     $options Options for document creation
      * @return \core_search\document
      */
-    abstract public function get_document($record);
+    abstract public function get_document($record, $options = array());
+
+    /**
+     * Returns a single document for the provided record id.
+     *
+     * Options is the same as for {@link get_document}
+     *
+     * @param int   $id The id to search for
+     * @param array $options Options for document creation
+     * @return stdClass|false
+     */
+    public function get_document_for_id($id, $options = array()) {
+        if (!$record = $this->get_record_for_id($id)) {
+            return false;
+        }
+
+        return $this->get_document($record, $options);
+    }
+
+    /**
+     * Add any files to the document that should be indexed.
+     *
+     * @param document $document The current document
+     * @param stdClass $record The db record for the current document
+     * @return void
+     */
+    protected function attach_files($document, $record) {
+        return;
+    }
 
     /**
      * Can the current user see the document.

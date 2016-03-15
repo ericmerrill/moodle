@@ -34,4 +34,36 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class activity extends \core_search\area\base_activity {
+    /**
+     * Returns true if this area uses file indexing.
+     *
+     * @return bool
+     */
+    public function uses_file_indexing() {
+        return true;
+    }
+
+    /**
+     * Add the main file to the index.
+     *
+     * @param document $document The current document
+     * @param stdClass $record The db record for the current document
+     * @return null
+     */
+    protected function attach_files($document, $record) {
+        $fs = get_file_storage();
+
+        $cm = $this->get_cm($this->get_module_name(), $record->id, $record->course);
+        $context = \context_module::instance($cm->id);
+
+        $files = $fs->get_area_files($context->id, 'mod_resource', 'content', 0, 'sortorder DESC, id ASC', false);
+
+        // Only index the main file (sort order of 1).
+        $mainfile = $files ? reset($files) : null;
+
+        if ($mainfile->get_sortorder() > 0) {
+            $document->add_stored_file($mainfile);
+        }
+    }
+
 }

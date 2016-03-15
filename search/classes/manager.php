@@ -43,6 +43,11 @@ class manager {
     const TYPE_TEXT = 1;
 
     /**
+     * @var int File contents.
+     */
+    const TYPE_FILE = 2;
+
+    /**
      * @var int User can not access the document.
      */
     const ACCESS_DENIED = 0;
@@ -501,23 +506,20 @@ class manager {
             $recordset = $searcharea->get_recordset_by_timestamp($prevtimestart);
 
             // Pass get_document as callback.
-            $iterator = new \core\dml\recordset_walk($recordset, array($searcharea, 'get_document'));
+            $fileindexing = $this->engine->file_indexing_enabled() &&
+                            $searcharea->uses_file_indexing();
+            $options = array('indexfiles' => $fileindexing,
+                             'lastindexedtime' => $prevtimestart); // TODO - do we want to do this with fullindex?
+            $iterator = new \core\dml\recordset_walk($recordset, array($searcharea, 'get_document'), $options);
             foreach ($iterator as $document) {
-
                 if (!$document instanceof \core_search\document) {
                     continue;
                 }
 
-                $docdata = $document->export_for_engine();
-                switch ($docdata['type']) {
-                    case static::TYPE_TEXT:
-                        $this->engine->add_document($docdata);
-                        $numdocs++;
-                        break;
-                    default:
-                        $numdocsignored++;
-                        $iterator->close();
-                        throw new \moodle_exception('doctypenotsupported', 'search');
+                if ($this->engine->add_document($document, $fileindexing)) {
+                    $numdocs++;
+                } else {
+                    $numdocsignored++;
                 }
 
                 $lastindexeddoc = $document->get('modified');

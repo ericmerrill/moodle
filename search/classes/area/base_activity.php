@@ -44,6 +44,14 @@ abstract class base_activity extends base_mod {
     const MODIFIED_FIELD_NAME = 'timemodified';
 
     /**
+     * @var string The time created field name.
+     *
+     * Activities not using timecreated as field name
+     * can overwrite this constant.
+     */
+    const CREATED_FIELD_NAME = '';
+
+    /**
      * The context levels the search area is working on.
      * @var array
      */
@@ -61,6 +69,17 @@ abstract class base_activity extends base_mod {
     }
 
     /**
+     * Returns a single record for the provided record id.
+     *
+     * @param int The id to search for.
+     * @return stdClass|false
+     */
+    public function get_record_for_id($id) {
+        global $DB;
+        return $DB->get_record($this->get_module_name(), array('id' => $id));
+    }
+
+    /**
      * Returns the document associated with this activity.
      *
      * This default implementation for activities sets the activity name to title and the activity intro to
@@ -68,9 +87,10 @@ abstract class base_activity extends base_mod {
      * default ones, or to fill description optional fields with extra stuff.
      *
      * @param stdClass $record
+     * @param array    $options
      * @return \core_search\document
      */
-    public function get_document($record) {
+    public function get_document($record, $options = array()) {
 
         try {
             $cm = $this->get_cm($this->get_module_name(), $record->id, $record->course);
@@ -94,6 +114,18 @@ abstract class base_activity extends base_mod {
         $doc->set('type', \core_search\manager::TYPE_TEXT);
         $doc->set('courseid', $record->course);
         $doc->set('modified', $record->{static::MODIFIED_FIELD_NAME});
+
+        $createdfield = static::CREATED_FIELD_NAME;
+        if (!empty($createdfield) && isset($options['lastindexedtime'])) {
+            if ($options['lastindexedtime'] < $record->{$createdfield}) {
+                // If the document was created after the last index time, it must be new.
+                $doc->set_is_new(true);
+            }
+        }
+
+        if (!empty($options['indexfiles'])) {
+            $this->attach_files($doc, $record);
+        }
 
         return $doc;
     }
