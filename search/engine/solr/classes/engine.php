@@ -554,8 +554,6 @@ class engine extends \core_search\engine {
      * @return void
      */
     protected function add_stored_file($document, $storedfile) {
-        // TODO filter files by type and size.
-
         $filedoc = $document->export_file_for_engine($storedfile);
 
         if ($filedoc['type'] != \core_search\manager::TYPE_FILE) {
@@ -578,14 +576,20 @@ class engine extends \core_search\engine {
         // This sets the true filename for Tika.
         $url->param('resource.name', $storedfile->get_filename());
 
-        // Tell Solr/Tika the mime type.
-        $url->param('stream.type', $storedfile->get_mimetype());
+        // Tell Solr/Tika the mime type, if we know it.
+        $mime = $storedfile->get_mimetype();
+        if ($mime != 'document/unknown') {
+            $url->param('stream.type', $mime);
+        }
 
-        // TODO - parse results for error, and catch/throw exceptions.
         $strurl = $url->out(false);
-        $rr = $curl->post($strurl, array('myfile' => $storedfile));
-
-        print "<pre>";print_r($rr);print "</pre>";
+        try {
+            // There is a response, but the contents are not important, since we aren't tracking per file/doc.
+            $curl->post($strurl, array('myfile' => $storedfile));
+        } catch (\Exception $e) {
+            // There was an error, but we are not tracking per-file success, so we just continue on.
+            return;
+        }
     }
 
     /**
