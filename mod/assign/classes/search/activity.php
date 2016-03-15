@@ -37,15 +37,6 @@ require_once($CFG->dirroot . '/mod/assign/locallib.php');
  */
 class activity extends \core_search\area\base_activity {
     /**
-     * Returns true if this area supports file indexing.
-     *
-     * @return bool
-     */
-    public function supports_file_indexing() {
-        return true;
-    }
-
-    /**
      * Returns true if this area uses file indexing.
      *
      * @return bool

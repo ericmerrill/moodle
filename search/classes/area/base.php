@@ -186,15 +186,6 @@ abstract class base {
     }
 
     /**
-     * Returns true if this area supports file indexing.
-     *
-     * @return bool
-     */
-    public function supports_file_indexing() {
-        return false;
-    }
-
-    /**
      * Returns true if this area uses file indexing.
      *
      * @return bool

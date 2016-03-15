@@ -132,15 +132,6 @@ class post extends \core_search\area\base_mod {
     }
 
     /**
-     * Returns true if this area supports file indexing.
-     *
-     * @return bool
-     */
-    public function supports_file_indexing() {
-        return true;
-    }
-
-    /**
      * Returns true if this area uses file indexing.
      *
      * @return bool

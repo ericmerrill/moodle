@@ -507,7 +507,6 @@ class manager {
 
             // Pass get_document as callback.
             $fileindexing = $this->engine->file_indexing_enabled() &&
-                            $searcharea->supports_file_indexing() &&
                             $searcharea->uses_file_indexing();
             $options = array('indexfiles' => $fileindexing,
                              'lastindexedtime' => $prevtimestart); // TODO - do we want to do this with fullindex?
