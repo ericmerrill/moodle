@@ -28,6 +28,7 @@ namespace core_mocksearch\search;
 defined('MOODLE_INTERNAL') || die;
 
 class role_capabilities extends \core_search\area\base {
+    protected static $file = false;
 
     /**
      * To make things easier, base class required config stuff.
@@ -47,7 +48,7 @@ class role_capabilities extends \core_search\area\base {
     public function get_record_for_id($id) {
         global $DB;
         // Filter by capability as we want this quick.
-        return $DB->get_record_sql("SELECT id, contextid, roleid, capability FROM {role_capabilities} where id >= ?", array($id));
+        return $DB->get_record_sql("SELECT id, contextid, roleid, capability FROM {role_capabilities} where id = ?", array($id));
     }
 
     public function get_document($record, $options = array()) {
@@ -63,7 +64,36 @@ class role_capabilities extends \core_search\area\base {
         $doc->set('userid', $USER->id);
         $doc->set('modified', time());
 
+        if (!empty($options['indexfiles'])) {
+            $this->attach_files($doc, $record);
+        }
+
         return $doc;
+    }
+
+    protected function attach_files($document, $record) {
+        global $CFG;
+
+        // Add the searchable file fixture.
+        $filepath = $CFG->dirroot.'/search/tests/fixtures/searchfile.txt';
+        $syscontext = \context_system::instance();
+        $filerecord = array(
+            'contextid' => $syscontext->id,
+            'component' => 'core',
+            'filearea'  => 'unittest',
+            'itemid'    => 0,
+            'filepath'  => '/',
+            'filename'  => 'searchfile'.$record->id.'.txt',
+        );
+
+        $fs = get_file_storage();
+        $file = $fs->create_file_from_pathname($filerecord, $filepath);
+
+        $document->add_stored_file($file);
+    }
+
+    public function uses_file_indexing() {
+        return true;
     }
 
     public function check_access($id) {

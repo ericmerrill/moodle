@@ -23,6 +23,7 @@
  * - define('TEST_SEARCH_SOLR_INDEXNAME', 'unittest');
  *
  * Optional params:
+ * - define('TEST_SEARCH_SOLR_FILE_INDEXING', 1);
  * - define('TEST_SEARCH_SOLR_USERNAME', '');
  * - define('TEST_SEARCH_SOLR_PASSWORD', '');
  * - define('TEST_SEARCH_SOLR_SSLCERT', '');
@@ -99,6 +100,11 @@ class search_solr_engine_testcase extends advanced_testcase {
             set_config('ssl_cainfo', TEST_SEARCH_SOLR_CAINFOCERT, 'search_solr');
         }
 
+        if (defined('TEST_SEARCH_SOLR_FILE_INDEXING') && (TEST_SEARCH_SOLR_FILE_INDEXING == 1)) {
+            set_config('fileindexing', 1, 'search_solr');
+        } else {
+            set_config('fileindexing', 0, 'search_solr');
+        }
 
         // Inject search solr engine into the testable core search as we need to add the mock
         // search component to it.
@@ -197,5 +203,19 @@ class search_solr_engine_testcase extends advanced_testcase {
         $this->search->delete_index($areaid);
         cache_helper::purge_by_definition('core', 'search_results');
         $this->assertCount(0, $this->search->search($querydata));
+    }
+
+    public function test_index_file() {
+        if (!defined('TEST_SEARCH_SOLR_FILE_INDEXING') || (TEST_SEARCH_SOLR_FILE_INDEXING != 1)) {
+            $this->markTestSkipped('Solr file indexing not enabled.');
+            return;
+        }
+
+        $this->search->index();
+
+        $querydata = new stdClass();
+        $querydata->q = '"Find Me File"';
+
+        $this->assertCount(2, $this->search->search($querydata));
     }
 }
