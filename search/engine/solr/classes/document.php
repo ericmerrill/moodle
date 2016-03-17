@@ -35,6 +35,32 @@ defined('MOODLE_INTERNAL') || die();
 class document extends \core_search\document {
 
     /**
+     * Any fields that are engine specifc. These are fields that are solely used by a seach engine plugin
+     * for internal purposes.
+     *
+     * Uses same format as other fields above.
+     *
+     * @var array
+     */
+    protected static $enginefields = array(
+        'solr_filegroupingid' => array(
+            'type' => 'string',
+            'stored' => true,
+            'indexed' => true
+        ),
+        'solr_fileid' => array(
+            'type' => 'string',
+            'stored' => true,
+            'indexed' => false
+        ),
+        'solr_filecontenthash' => array(
+            'type' => 'string',
+            'stored' => true,
+            'indexed' => false
+        )
+    );
+
+    /**
      * Formats the timestamp according to the search engine needs.
      *
      * @param int $timestamp
@@ -73,5 +99,41 @@ class document extends \core_search\document {
      */
     protected function get_text_format() {
         return FORMAT_MARKDOWN;
+    }
+
+    /**
+     * Apply any defaults to unset fields before export. Called after document building, but before export.
+     *
+     * Sub-classes of this should make sure to call parent::apply_defaults().
+     */
+    protected function apply_defaults() {
+        parent::apply_defaults();
+
+        // We want to set the solr_filegroupingid to id if it isn't set.
+        if (!isset($this->data['solr_filegroupingid'])) {
+            $this->data['solr_filegroupingid'] = $this->data['id'];
+        }
+    }
+
+    /**
+     * Export the data for the given file in relation to this document.
+     *
+     * @param \stored_file $file The stored file we are talking about.
+     * @return array
+     */
+    public function export_file_for_engine($file) {
+        $data = $this->export_for_engine();
+
+        // Content is index in the main document.
+        unset($data['content']);
+
+        // Going to append the fileid to give it a unique id.
+        $data['id'] = $data['id'].'-file'.$file->get_id();
+        $data['type'] = \core_search\manager::TYPE_FILE;
+        $data['solr_fileid'] = $file->get_id();
+        $data['solr_filecontenthash'] = $file->get_contenthash();
+        $data['title'] = $file->get_filename();
+
+        return $data;
     }
 }
