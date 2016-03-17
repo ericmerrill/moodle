@@ -58,12 +58,28 @@ class entry extends \core_search\area\base_mod {
     }
 
     /**
+     * Returns a single record for the provided record id.
+     *
+     * @param int $id The id to search for.
+     * @return stdClass|false
+     */
+    public function get_record_for_id($id) {
+        global $DB;
+
+        $sql = "SELECT ge.*, g.course FROM {glossary_entries} ge
+                  JOIN {glossary} g ON g.id = ge.glossaryid
+                WHERE ge.id = ?";
+        return $DB->get_recordset_sql($sql, array($id));
+    }
+
+    /**
      * Returns the documents associated with this glossary entry id.
      *
      * @param stdClass $entry glossary entry.
+     * @param array    $options
      * @return \core_search\document
      */
-    public function get_document($entry) {
+    public function get_document($entry, $options = array()) {
         global $DB;
 
         $keywords = array();
@@ -96,6 +112,17 @@ class entry extends \core_search\area\base_mod {
         $doc->set('courseid', $entry->course);
         $doc->set('userid', $entry->userid);
         $doc->set('modified', $entry->timemodified);
+
+        // Check if this document should be considered new.
+        if (isset($options['lastindexedtime'])) {
+            if ($options['lastindexedtime'] == 0) {
+                // Zero means the index is new.
+                $doc->set_is_new(true);
+            } else if ($options['lastindexedtime'] < $record->timecreated) {
+                // If the document was created after the last index time, it must be new.
+                $doc->set_is_new(true);
+            }
+        }
 
         // Adding keywords as extra info.
         if ($keywords) {

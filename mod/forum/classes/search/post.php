@@ -65,17 +65,35 @@ class post extends \core_search\area\base_mod {
                   FROM {forum_posts} fp
                   JOIN {forum_discussions} fd ON fd.id = fp.discussion
                   JOIN {forum} f ON f.id = fd.forum
-                WHERE fp.modified >= ? ORDER BY fp.modified ASC';
+                 WHERE fp.modified >= ? ORDER BY fp.modified ASC';
         return $DB->get_recordset_sql($sql, array($modifiedfrom));
+    }
+
+    /**
+     * Returns a single record for the provided record id.
+     *
+     * @param int $id The id to search for.
+     * @return stdClass|false
+     */
+    public function get_record_for_id($id) {
+        global $DB;
+
+        $sql = 'SELECT fp.*, f.id AS forumid, f.course AS courseid
+                  FROM {forum_posts} fp
+                  JOIN {forum_discussions} fd ON fd.id = fp.discussion
+                  JOIN {forum} f ON f.id = fd.forum
+                 WHERE fp.id = ?';
+        return $DB->get_record_sql($sql, array($id));
     }
 
     /**
      * Returns the document associated with this post id.
      *
      * @param stdClass $record Post info.
+     * @param array    $options
      * @return \core_search\document
      */
-    public function get_document($record) {
+    public function get_document($record, $options = array()) {
 
         try {
             $cm = $this->get_cm('forum', $record->forumid, $record->courseid);
@@ -101,7 +119,51 @@ class post extends \core_search\area\base_mod {
         $doc->set('userid', $record->userid);
         $doc->set('modified', $record->modified);
 
+        // Check if this document should be considered new.
+        if (isset($options['lastindexedtime'])) {
+            if ($options['lastindexedtime'] == 0) {
+                // Zero means the index is new.
+                $doc->set_is_new(true);
+            } else if ($options['lastindexedtime'] < $record->created) {
+                // If the document was created after the last index time, it must be new.
+                $doc->set_is_new(true);
+            }
+        }
+
+        if (!empty($options['indexfiles'])) {
+            $this->attach_files($doc, $record);
+        }
+
         return $doc;
+    }
+
+    /**
+     * Returns true if this area uses file indexing.
+     *
+     * @return bool
+     */
+    public function uses_file_indexing() {
+        return true;
+    }
+
+    /**
+     * Add the forum post attachments.
+     *
+     * @param document $document The current document
+     * @param stdClass $record The db record for the current document
+     * @return null
+     */
+    protected function attach_files($document, $record) {
+        $fs = get_file_storage();
+
+        $cm = $this->get_cm('forum', $record->forumid, $record->courseid);
+        $context = \context_module::instance($cm->id);
+
+        $files = $fs->get_area_files($context->id, 'mod_forum', 'attachment', $record->id, "filename", false);
+
+        foreach ($files as $file) {
+            $document->add_stored_file($file);
+        }
     }
 
     /**

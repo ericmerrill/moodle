@@ -43,9 +43,10 @@ class activity extends \core_search\area\base_activity {
      * description field is not.
      *
      * @param stdClass $record
+     * @param array    $options
      * @return \core_search\document
      */
-    public function get_document($record) {
+    public function get_document($record, $options = array()) {
 
         try {
             $cm = $this->get_cm($this->get_module_name(), $record->id, $record->course);
@@ -70,6 +71,12 @@ class activity extends \core_search\area\base_activity {
         $doc->set('courseid', $record->course);
         $doc->set('modified', $record->timemodified);
         $doc->set('description1', content_to_text($record->intro, $record->introformat));
+
+        // Check if this document should be considered new.
+        if (isset($options['lastindexedtime']) && $options['lastindexedtime'] == 0) {
+            // Zero means the index is new.
+            $doc->set_is_new(true);
+        }
 
         return $doc;
     }
