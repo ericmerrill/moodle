@@ -29,6 +29,7 @@
     * multiple True if this field allows multiple selections
     * selectionId The dom id of the current selection list.
     * items List of items with label and value fields.
+    * noSelectionString String to use when no items are selected
 
     Example context (json):
     { "multiple": true, "selectionId": 1, "items": [
@@ -44,7 +45,7 @@
         </span>
     {{/items}}
     {{^items}}
-        <span>{{#str}}noselection,form{{/str}}</span>
+        <span>{{noSelectionString}}</span>
     {{/items}}
 </div>
 </div>

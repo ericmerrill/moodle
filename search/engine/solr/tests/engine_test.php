@@ -192,6 +192,14 @@ class search_solr_engine_testcase extends advanced_testcase {
         unset($querydata->timeend);
         $querydata->title = 'moodle/course:renameroles roleid 1';
         $this->assertCount(1, $this->search->search($querydata));
+
+        // Course IDs.
+        unset($querydata->title);
+        $querydata->courseids = array(SITEID + 1);
+        $this->assertCount(0, $this->search->search($querydata));
+
+        $querydata->courseids = array(SITEID);
+        $this->assertCount(3, $this->search->search($querydata));
     }
 
     public function test_delete() {

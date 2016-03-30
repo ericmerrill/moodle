@@ -55,6 +55,11 @@ class MoodleQuickForm_course extends MoodleQuickForm_autocomplete {
     protected $requiredcapabilities = array();
 
     /**
+     * @var bool $limittoenroled Only allow enrolled courses.
+     */
+    protected $limittoenroled = false;
+
+    /**
      * Constructor
      *
      * @param string $elementname Element name
@@ -78,14 +83,24 @@ class MoodleQuickForm_course extends MoodleQuickForm_autocomplete {
         if (isset($options['requiredcapabilities'])) {
             $this->requiredcapabilities = $options['requiredcapabilities'];
         }
+        if (isset($options['limittoenroled'])) {
+            $this->limittoenroled = $options['limittoenroled'];
+        }
 
         $validattributes = array(
             'ajax' => 'core/form-course-selector',
             'data-requiredcapabilities' => implode(',', $this->requiredcapabilities),
-            'data-exclude' => implode(',', $this->exclude)
+            'data-exclude' => implode(',', $this->exclude),
+            'data-limittoenroled' => (int)$this->limittoenroled
         );
         if ($this->multiple) {
             $validattributes['multiple'] = 'multiple';
+        }
+        if (isset($options['noselectionstring'])) {
+            $validattributes['noselectionstring'] = $options['noselectionstring'];
+        }
+        if (isset($options['placeholder'])) {
+            $validattributes['placeholder'] = $options['placeholder'];
         }
 
         parent::__construct($elementname, $elementlabel, array(), $validattributes);

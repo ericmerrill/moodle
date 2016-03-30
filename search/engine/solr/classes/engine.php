@@ -115,6 +115,11 @@ class engine extends \core_search\engine {
             // Even if it is only supposed to contain PARAM_ALPHANUMEXT, better to prevent.
             $query->addFilterQuery('{!field cache=false f=areaid}' . $data->areaid);
         }
+        if (!empty($data->courseids)) {
+            // Even if it is only supposed to contain PARAM_ALPHANUMEXT, better to prevent.
+            $query->addFilterQuery('courseid:(' . implode(' OR ', $data->courseids) . ')');
+        }
+
 
         if (!empty($data->timestart) or !empty($data->timeend)) {
             if (empty($data->timestart)) {
