@@ -61,9 +61,9 @@ class engine extends \core_search\engine {
     const HIGHLIGHT_END = '@@HI_E@@';
 
     /**
-     * @var \SolrClient
+     * @var \SolrClient[]
      */
-    protected $client = null;
+    protected $clients = array();
 
     /**
      * @var \curl Direct curl object.
@@ -90,7 +90,7 @@ class engine extends \core_search\engine {
         $data = clone $filters;
 
         // If there is any problem we trigger the exception as soon as possible.
-        $this->client = $this->get_search_client();
+        $client = $this->get_search_client('execute_query');
 
         $serverstatus = $this->is_server_ready();
         if ($serverstatus !== true) {
@@ -160,9 +160,9 @@ class engine extends \core_search\engine {
                 $query->setGroup(true);
                 $query->setGroupLimit(3);
                 $query->addGroupField('solr_filegroupingid');
-                return $this->grouped_files_query_response($this->client->query($query));
+                return $this->grouped_files_query_response($client->query($query));
             } else {
-                return $this->query_response($this->client->query($query));
+                return $this->query_response($client->query($query));
             }
         } catch (\SolrClientException $ex) {
             debugging('Error executing the provided query: ' . $ex->getMessage(), DEBUG_DEVELOPER);
@@ -449,7 +449,7 @@ class engine extends \core_search\engine {
         $query->addFilterQuery('{!cache=false}id:(' . implode(' OR ', $docids) . ')');
 
         try {
-            $results = $this->query_response($this->get_search_client()->query($query));
+            $results = $this->query_response($this->get_search_client('get_missing_docs')->query($query));
         } catch (\SolrClientException $ex) {
             return array();
         } catch (\SolrServerException $ex) {
@@ -528,7 +528,7 @@ class engine extends \core_search\engine {
         }
 
         try {
-            $result = $this->get_search_client()->addDocument($solrdoc, true, static::AUTOCOMMIT_WITHIN);
+            $result = $this->get_search_client('add_solr_document')->addDocument($solrdoc, true, static::AUTOCOMMIT_WITHIN);
             return true;
         } catch (\SolrClientException $e) {
             debugging('Solr client error adding document with id ' . $doc['id'] . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
@@ -657,7 +657,7 @@ class engine extends \core_search\engine {
         $query->addFilterQuery('type:' . \core_search\manager::TYPE_FILE);
 
         try {
-            $response = $this->get_search_client()->query($query);
+            $response = $this->get_search_client('get_indexed_files')->query($query);
             $responsedoc = $response->getResponse();
 
             if (empty($responsedoc->response->numFound)) {
@@ -909,12 +909,12 @@ class engine extends \core_search\engine {
             return 'No solr configuration found';
         }
 
-        if (!$this->client = $this->get_search_client(false)) {
+        if (!$client = $this->get_search_client('general', false)) {
             return get_string('engineserverstatus', 'search');
         }
 
         try {
-            @$this->client->ping();
+            @$client->ping();
         } catch (\SolrClientException $ex) {
             return 'Solr client error: ' . $ex->getMessage();
         } catch (\SolrServerException $ex) {
@@ -945,14 +945,15 @@ class engine extends \core_search\engine {
      * Returns the solr client instance.
      *
      * @throws \core_search\engine_exception
+     * @param string $key A key to get different SolrClients
      * @param bool $triggerexception
      * @return \SolrClient
      */
-    protected function get_search_client($triggerexception = true) {
+    protected function get_search_client($key = 'general', $triggerexception = true) {
 
         // Type comparison as it is set to false if not available.
-        if ($this->client !== null) {
-            return $this->client;
+        if (isset($this->client[$key])) {
+            return $this->client[$key];
         }
 
         $options = array(
@@ -970,13 +971,13 @@ class engine extends \core_search\engine {
             'timeout' => !empty($this->config->server_timeout) ? $this->config->server_timeout : '30'
         );
 
-        $this->client = new \SolrClient($options);
+        $this->client[$key] = new \SolrClient($options);
 
-        if ($this->client === false && $triggerexception) {
+        if ($this->client[$key] === false && $triggerexception) {
             throw new \core_search\engine_exception('engineserverstatus', 'search');
         }
 
-        return $this->client;
+        return $this->client[$key];
     }
 
     /**
