@@ -200,6 +200,23 @@ class search_solr_engine_testcase extends advanced_testcase {
 
         $querydata->courseids = array(SITEID);
         $this->assertCount(3, $this->search->search($querydata));
+
+        // Now try some area-id combinations.
+        unset($querydata->courseids);
+        $forumpostareaid = \core_search\manager::generate_areaid('mod_forum', 'post');
+        $mockareaid = \core_search\manager::generate_areaid('core_mocksearch', 'role_capabilities');
+
+        $querydata->areaids = array($forumpostareaid);
+        $this->assertCount(0, $this->search->search($querydata));
+
+        $querydata->areaids = array($forumpostareaid, $mockareaid);
+        $this->assertCount(3, $this->search->search($querydata));
+
+        $querydata->areaids = array($mockareaid);
+        $this->assertCount(3, $this->search->search($querydata));
+
+        $querydata->areaids = array();
+        $this->assertCount(3, $this->search->search($querydata));
     }
 
     public function test_delete() {

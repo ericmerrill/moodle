@@ -470,10 +470,17 @@ class manager {
             $courseids = implode('-', $params->courseids);
         }
 
+        if (empty($params->areaids)) {
+            $areaids = '';
+        } else {
+            sort($params->areaids);
+            $areaids = implode('-', $params->areaids);
+        }
+
         // Although it is not likely, we prevent cache hits if available search areas change during the session.
         $enabledareas = implode('-', array_keys(static::get_search_areas_list(true)));
 
-        return md5($params->q . 'userid=' . $USER->id . 'title=' . $params->title . 'areaid=' . $params->areaid .
+        return md5($params->q . 'userid=' . $USER->id . 'title=' . $params->title . 'areaids=' . $areaids .
             'timestart=' . $params->timestart . 'timeend=' . $params->timeend . 'page=' . $params->page .
             'courseids=' . $courseids . $enabledareas);
     }

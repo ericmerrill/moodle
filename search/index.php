@@ -27,8 +27,7 @@ require_once(__DIR__ . '/../config.php');
 $page = optional_param('page', 0, PARAM_INT);
 $q = optional_param('q', '', PARAM_NOTAGS);
 $title = optional_param('title', '', PARAM_NOTAGS);
-$areaid = optional_param('areaid', false, PARAM_ALPHANUMEXT);
-// Moving timestart and timeend further down as they might come as an array if they come from the form.
+// Moving areaids, timestart, and timeend further down as they might come as an array if they come from the form.
 
 $context = context_system::instance();
 $pagetitle = get_string('globalsearch', 'search');
@@ -66,7 +65,11 @@ if (!$data && $q) {
     $data = new stdClass();
     $data->q = $q;
     $data->title = $title;
-    $data->areaid = $areaid;
+    $areaids = optional_param('areaids', '', PARAM_TEXT);
+    if (!empty($areaids)) {
+        $areaids = explode(',', $areaids);
+        $data->areaids = clean_param_array($areaids, PARAM_ALPHANUMEXT);
+    }
     $courseids = optional_param('courseids', '', PARAM_TEXT);
     if (!empty($courseids)) {
         $courseids = explode(',', $courseids);
@@ -82,7 +85,9 @@ $urlparams = array('page' => $page);
 if ($data) {
     $urlparams['q'] = $data->q;
     $urlparams['title'] = $data->title;
-    $urlparams['areaid'] = $data->areaid;
+    if (!empty($data->areaids)) {
+        $urlparams['areaids'] = implode(',', $data->areaids);
+    }
     if (!empty($data->courseids)) {
         $urlparams['courseids'] = implode(',', $data->courseids);
     }

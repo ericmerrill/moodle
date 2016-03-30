@@ -111,9 +111,9 @@ class engine extends \core_search\engine {
         if (!empty($data->title)) {
             $query->addFilterQuery('{!field cache=false f=title}' . $data->title);
         }
-        if (!empty($data->areaid)) {
-            // Even if it is only supposed to contain PARAM_ALPHANUMEXT, better to prevent.
-            $query->addFilterQuery('{!field cache=false f=areaid}' . $data->areaid);
+        if (!empty($data->areaids)) {
+            // If areaids are specified, we want to get any that match.
+            $query->addFilterQuery('{!cache=false}areaid:(' . implode(' OR ', $data->areaids) . ')');
         }
         if (!empty($data->courseids)) {
             // Even if it is only supposed to contain PARAM_ALPHANUMEXT, better to prevent.
@@ -144,19 +144,19 @@ class engine extends \core_search\engine {
         // If the user can access all contexts $usercontexts value is just true, we don't need to filter
         // in that case.
         if ($usercontexts && is_array($usercontexts)) {
-            if (!empty($data->areaid)) {
-                $query->addFilterQuery('contextid:(' . implode(' OR ', $usercontexts[$data->areaid]) . ')');
-            } else {
-                // Join all area contexts into a single array and implode.
-                $allcontexts = array();
-                foreach ($usercontexts as $areacontexts) {
-                    foreach ($areacontexts as $contextid) {
-                        // Ensure they are unique.
-                        $allcontexts[$contextid] = $contextid;
-                    }
+            // Join all area contexts into a single array and implode.
+            $allcontexts = array();
+            foreach ($usercontexts as $areaid => $areacontexts) {
+                if (!empty($data->areaids) && !in_array($areaid, $data->areaids)) {
+                    // Skip unused areas.
+                    continue;
                 }
-                $query->addFilterQuery('contextid:(' . implode(' OR ', $allcontexts) . ')');
+                foreach ($areacontexts as $contextid) {
+                    // Ensure they are unique.
+                    $allcontexts[$contextid] = $contextid;
+                }
             }
+            $query->addFilterQuery('contextid:(' . implode(' OR ', $allcontexts) . ')');
         }
 
         try {
