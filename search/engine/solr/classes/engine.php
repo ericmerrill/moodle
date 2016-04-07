@@ -131,6 +131,8 @@ class engine extends \core_search\engine {
             return array();
         }
 
+        $needed = \core_search\manager::MAX_RESULTS;
+
         list($included, $found) = $this->get_response_counts($response);
         $this->estremaining = $found;
         if ($this->estremaining == 0) {
@@ -145,9 +147,11 @@ class engine extends \core_search\engine {
             $docs = $this->query_response($response);
         }
 
+
+
         $this->currentcount += $included;
 
-        while (count($docs) < \core_search\manager::MAX_RESULTS && ($this->estremaining - $this->currentcount) > 0) {
+        while (count($docs) < $needed && ($this->estremaining - $this->currentcount) > 0) {
             $query->setStart($this->currentcount);
 
             try {
@@ -169,9 +173,9 @@ class engine extends \core_search\engine {
             }
 
             if (isset($response->grouped->solr_filegroupingid)) {
-                $newdocs = $this->grouped_files_query_response($response);
+                $newdocs = $this->grouped_files_query_response($response, $needed - count($docs));
             } else {
-                $newdocs = $this->query_response($response);
+                $newdocs = $this->query_response($response, $needed - count($docs));
             }
             $docs = array_merge($docs, $newdocs);
 
@@ -179,7 +183,7 @@ class engine extends \core_search\engine {
             $this->currentcount += $included;
         }
 
-
+//print "<pre>";var_dump($docs);print "</pre>";
         return $docs;
 
     }
@@ -304,7 +308,7 @@ class engine extends \core_search\engine {
         $query->setQuery($q);
 
         // A reasonable max.
-        $query->setRows(1);
+        $query->setRows($maxresults);
     }
 
     /**
@@ -379,8 +383,12 @@ class engine extends \core_search\engine {
      * @param object $queryresponse containing the response return from solr server.
      * @return array $results containing final results to be displayed.
      */
-    public function query_response($queryresponse) {
+    public function query_response($queryresponse, $limit = 0) {
         global $USER;
+
+        if (empty($limit)) {
+            $limit = \core_search\manager::MAX_RESULTS;
+        }
 
         $userid = $USER->id;
         $noownerid = \core_search\manager::NO_OWNER_ID;
@@ -392,6 +400,7 @@ class engine extends \core_search\engine {
             return array();
         }
 
+        $out = array();
         if (!empty($response->response->numFound)) {
             $this->add_highlight_content($response);
 
@@ -399,43 +408,43 @@ class engine extends \core_search\engine {
             foreach ($docs as $key => $docdata) {
                 if ($docdata['owneruserid'] != $noownerid && $docdata['owneruserid'] != $userid) {
                     // If owneruserid is set, no other user should be able to access this record.
-                    unset($docs[$key]);
                     continue;
                 }
 
                 if (!$searcharea = $this->get_search_area($docdata->areaid)) {
-                    unset($docs[$key]);
                     continue;
                 }
-
+// Drop something for testing.
+if ($docdata->solr_filegroupingid == 'mod_resource-activity-1') {
+    continue;
+}
                 $docdata = $this->standarize_solr_obj($docdata);
 
                 $access = $searcharea->check_access($docdata['itemid']);
                 switch ($access) {
                     case \core_search\manager::ACCESS_DELETED:
                         $this->delete_by_id($docdata['id']);
-                        unset($docs[$key]);
                         break;
                     case \core_search\manager::ACCESS_DENIED:
-                        unset($docs[$key]);
                         break;
                     case \core_search\manager::ACCESS_GRANTED:
                         $numgranted++;
 
                         // Add the doc.
-                        $docs[$key] = $this->to_document($searcharea, $docdata);
+                        $out[] = $this->to_document($searcharea, $docdata);
                         break;
                 }
 
-                // This should never happen.
-                if ($numgranted >= \core_search\manager::MAX_RESULTS) {
-                    $docs = array_slice($docs, 0, \core_search\manager::MAX_RESULTS, true);
+                // Stop when we hit our limit.
+                if (count($out) >= $limit) {
+                print "<pre>";print_r('break at '.count($out));print "</pre>";
+                    //$docs = array_slice($docs, 0, $limit, true);
                     break;
                 }
             }
         }
 
-        return $docs;
+        return $out;
     }
 
     /**
@@ -444,8 +453,12 @@ class engine extends \core_search\engine {
      * @param SolrQueryResponse $queryresponse The response returned from solr server
      * @return array Final results to be displayed.
      */
-    protected function grouped_files_query_response($queryresponse) {
+    protected function grouped_files_query_response($queryresponse, $limit = 0) {
         $response = $queryresponse;
+
+        if (empty($limit)) {
+            $limit = \core_search\manager::MAX_RESULTS;
+        }
 
         // If we can't find the grouping, or there are no matches in the grouping, return empty.
         if (!isset($response->grouped->solr_filegroupingid) || empty($response->grouped->solr_filegroupingid->matches)) {
@@ -466,6 +479,10 @@ class engine extends \core_search\engine {
             $groupdocs = $group->doclist->docs;
             $firstdoc = reset($groupdocs);
 
+// Drop something for testing.
+if ($firstdoc->solr_filegroupingid == 'mod_resource-activity-1') {
+    continue;
+}
             if (!$searcharea = $this->get_search_area($firstdoc->areaid)) {
                 // Well, this is a problem.
                 continue;
@@ -473,6 +490,7 @@ class engine extends \core_search\engine {
 
             // Check for access.
             $access = $searcharea->check_access($firstdoc->itemid);
+
             switch ($access) {
                 case \core_search\manager::ACCESS_DELETED:
                     // If deleted from Moodle, delete from index and then continue.
@@ -517,7 +535,7 @@ class engine extends \core_search\engine {
                 $completedocs[$groupid] = $doc;
             }
 
-            if ($numgranted >= \core_search\manager::MAX_RESULTS) {
+            if ($numgranted >= $limit) {
                 // We have hit the max results, we will just ignore the rest.
                 break;
             }
@@ -563,7 +581,8 @@ class engine extends \core_search\engine {
         $query->addFilterQuery('{!cache=false}id:(' . implode(' OR ', $docids) . ')');
 
         try {
-            $results = $this->query_response($this->get_search_client()->query($query));
+            $response = $this->get_search_client()->query($query);
+            $results = $this->query_response($response->getResponse());
         } catch (\SolrClientException $ex) {
             return array();
         } catch (\SolrServerException $ex) {
