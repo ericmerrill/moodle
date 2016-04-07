@@ -103,7 +103,7 @@ class engine extends \core_search\engine {
      * @param  array     $usercontexts Contexts where the user has access. True if the user can access all contexts.
      * @return \core_search\document[] Results or false if no results
      */
-    public function execute_query($filters, $usercontexts) {
+    public function execute_query($filters, $usercontexts, $limit = 10, $from = 0) {
         global $USER;
 
         // Let's keep these changes internal.
@@ -117,12 +117,106 @@ class engine extends \core_search\engine {
             throw new \core_search\engine_exception('engineserverstatus', 'search');
         }
 
+        $query = $this->create_user_query($filters, $usercontexts);
+
+        try {
+            $response = $client->query($query)->getResponse();
+        } catch (\SolrClientException $ex) {
+            debugging('Error executing the provided query: ' . $ex->getMessage(), DEBUG_DEVELOPER);
+            $this->queryerror = $ex->getMessage();
+            return array();
+        } catch (\SolrServerException $ex) {
+            debugging('Error executing the provided query: ' . $ex->getMessage(), DEBUG_DEVELOPER);
+            $this->queryerror = $ex->getMessage();
+            return array();
+        }
+
+        list($included, $found) = $this->get_response_counts($response);
+        $this->estremaining = $found;
+        if ($this->estremaining == 0) {
+            return array();
+        }
+
+        $docs = array();
+
+        if (isset($response->grouped->solr_filegroupingid)) {
+            $docs = $this->grouped_files_query_response($response);
+        } else {
+            $docs = $this->query_response($response);
+        }
+
+        $this->currentcount += $included;
+
+        while (count($docs) < \core_search\manager::MAX_RESULTS && ($this->estremaining - $this->currentcount) > 0) {
+            $query->setStart($this->currentcount);
+
+            try {
+                $response = $client->query($query)->getResponse();
+            } catch (\SolrClientException $ex) {
+                debugging('Error executing the provided query: ' . $ex->getMessage(), DEBUG_DEVELOPER);
+                $this->queryerror = $ex->getMessage();
+                return array();
+            } catch (\SolrServerException $ex) {
+                debugging('Error executing the provided query: ' . $ex->getMessage(), DEBUG_DEVELOPER);
+                $this->queryerror = $ex->getMessage();
+                return array();
+            }
+
+            list($included, $found) = $this->get_response_counts($response);
+            $this->estremaining = $found;
+            if ($this->estremaining == 0) {
+                return array();
+            }
+
+            if (isset($response->grouped->solr_filegroupingid)) {
+                $newdocs = $this->grouped_files_query_response($response);
+            } else {
+                $newdocs = $this->query_response($response);
+            }
+            $docs = array_merge($docs, $newdocs);
+
+
+            $this->currentcount += $included;
+        }
+
+
+        return $docs;
+
+    }
+
+    protected $currentcount = 0;
+    protected $estremaining = 0;
+
+    protected function process_response($solrresponse) {
+        if (isset($solrresponse->grouped)) {
+
+        } else {
+            // TODO.
+        }
+    }
+
+    protected function get_response_counts($solrresponse) {
+        $found = 0;
+        $included = 0;
+        if (isset($solrresponse->grouped->solr_filegroupingid)) {
+            $found = $solrresponse->grouped->solr_filegroupingid->ngroups;
+            $included = count($solrresponse->grouped->solr_filegroupingid->groups);
+        } else if (isset($solrresponse->response->numFound)) {
+            $found = $solrresponse->response->numFound;
+            $included = count($solrresponse->response->docs);
+        }
+//print "<pre>";print_r(array($included, $found));print "</pre>";
+        return array($included, $found);
+    }
+
+    protected function create_user_query($filters, $usercontexts) {
+        global $USER;
+
+        // Let's keep these changes internal.
+        $data = clone $filters;
+
         $query = new \SolrDisMaxQuery();
         $maxrows = \core_search\manager::MAX_RESULTS;
-        if ($this->file_indexing_enabled()) {
-            // When using file indexing and grouping, we are going to collapse results, so we want extra results.
-            $maxrows *= 2;
-        }
         $this->set_query($query, $data->q, $maxrows);
         $this->add_fields($query);
 
@@ -174,26 +268,15 @@ class engine extends \core_search\engine {
             }
         }
 
-        try {
-            if ($this->file_indexing_enabled()) {
-                // Now group records by solr_filegroupingid. Limit to 3 results per group.
-                $query->setGroup(true);
-                $query->setGroupLimit(3);
-                $query->addGroupField('solr_filegroupingid');
-                return $this->grouped_files_query_response($client->query($query));
-            } else {
-                return $this->query_response($client->query($query));
-            }
-        } catch (\SolrClientException $ex) {
-            debugging('Error executing the provided query: ' . $ex->getMessage(), DEBUG_DEVELOPER);
-            $this->queryerror = $ex->getMessage();
-            return array();
-        } catch (\SolrServerException $ex) {
-            debugging('Error executing the provided query: ' . $ex->getMessage(), DEBUG_DEVELOPER);
-            $this->queryerror = $ex->getMessage();
-            return array();
+        if ($this->file_indexing_enabled()) {
+            // Now group records by solr_filegroupingid. Limit to 3 results per group.
+            $query->setGroup(true);
+            $query->setGroupLimit(3);
+            $query->setGroupNGroups(true);
+            $query->addGroupField('solr_filegroupingid');
         }
 
+        return $query;
     }
 
     /**
@@ -221,7 +304,7 @@ class engine extends \core_search\engine {
         $query->setQuery($q);
 
         // A reasonable max.
-        $query->setRows($maxresults);
+        $query->setRows(1);
     }
 
     /**
@@ -302,7 +385,7 @@ class engine extends \core_search\engine {
         $userid = $USER->id;
         $noownerid = \core_search\manager::NO_OWNER_ID;
 
-        $response = $queryresponse->getResponse();
+        $response = $queryresponse;
         $numgranted = 0;
 
         if (!$docs = $response->response->docs) {
@@ -362,7 +445,7 @@ class engine extends \core_search\engine {
      * @return array Final results to be displayed.
      */
     protected function grouped_files_query_response($queryresponse) {
-        $response = $queryresponse->getResponse();
+        $response = $queryresponse;
 
         // If we can't find the grouping, or there are no matches in the grouping, return empty.
         if (!isset($response->grouped->solr_filegroupingid) || empty($response->grouped->solr_filegroupingid->matches)) {
@@ -895,6 +978,7 @@ class engine extends \core_search\engine {
      * @return bool
      */
     public function file_indexing_enabled() {
+        //return false;
         return (bool)$this->config->fileindexing;
     }
 
