@@ -325,7 +325,9 @@ abstract class engine {
      *
      * @return int
      */
-    abstract public function get_query_total_count();
+    public function get_query_total_count() {
+        return manager::MAX_RESULTS;
+    }
 
     /**
      * Return true if file indexing is supported and enabled. False otherwise.
