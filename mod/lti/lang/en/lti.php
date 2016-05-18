@@ -431,9 +431,13 @@ $string['share_roster_admin_help'] = 'Specify whether the tool can access the li
 $string['share_roster_help'] = 'Specify whether the tool can access the list of users enrolled in this course.
 
 Note that this setting may be overridden in the tool configuration.';
-$string['show_in_course'] = 'Show preconfigured tool when creating tool instances';
-$string['show_in_course_help'] = 'If selected, this tool configuration will appear in the "Preconfigured tools" dropdown when teachers
-configure external tools within courses, and it will appear in the activity picker.
+$string['show_in_course'] = 'Show preconfigured tool in activity picker';
+$string['show_in_course_help'] = 'If selected, this tool configuration will appear in the activity picker.
+
+If not selected teachers can only use this tool configuration based on the Launch URL matching the Tool base URL.';
+$string['show_in_list'] = 'Show preconfigured tool when creating tool instances';
+$string['show_in_list_help'] = 'If selected, this tool configuration will appear in the "Preconfigured tools" dropdown when teachers
+configure external tools within courses.
 
 If not selected teachers can only use this tool configuration based on the Launch URL matching the Tool base URL.';
 $string['size'] = 'Size parameters';

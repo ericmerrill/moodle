@@ -1440,6 +1440,10 @@ function lti_get_type_type_config($id) {
         $type->lti_coursevisible = $config['coursevisible'];
     }
 
+    if (isset($config['listvisible'])) {
+        $type->lti_listvisible = $config['listvisible'];
+    }
+
     if (isset($config['debuglaunch'])) {
         $type->lti_debuglaunch = $config['debuglaunch'];
     }
@@ -1464,6 +1468,9 @@ function lti_prepare_type_for_save($type, $config) {
     }
     if (isset($config->lti_coursevisible)) {
         $type->coursevisible = $config->lti_coursevisible;
+    }
+    if (isset($config->lti_listvisible)) {
+        $type->listvisible = $config->lti_listvisible;
     }
 
     if (isset($config->lti_icon)) {

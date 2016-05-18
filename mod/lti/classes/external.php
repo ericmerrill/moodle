@@ -709,6 +709,7 @@ class mod_lti_external extends external_api {
             $data = new stdClass();
             $type->state = LTI_TOOL_STATE_CONFIGURED;
             $data->lti_coursevisible = 1;
+            $data->lti_listvisible = 1;
             $data->lti_sendname = LTI_SETTING_DELEGATE;
             $data->lti_sendemailaddr = LTI_SETTING_DELEGATE;
             $data->lti_acceptgrades = LTI_SETTING_DELEGATE;

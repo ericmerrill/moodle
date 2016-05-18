@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="mod/lti/db" VERSION="20151204" COMMENT="XMLDB file for Moodle mod/lti"
+<XMLDB PATH="mod/lti/db" VERSION="20160518" COMMENT="XMLDB file for Moodle mod/lti"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -72,6 +72,7 @@
         <FIELD NAME="state" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="2" SEQUENCE="false" COMMENT="Active = 1, Pending = 2, Rejected = 3"/>
         <FIELD NAME="course" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="coursevisible" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="listvisible" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="toolproxyid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Primary key of related tool proxy (null for LTI 1 tools)"/>
         <FIELD NAME="enabledcapability" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Enabled capabilities, one per line (null for LTI 1 tools)"/>
         <FIELD NAME="parameter" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Launch parameters, one per line (null for LTI 1 tools)"/>

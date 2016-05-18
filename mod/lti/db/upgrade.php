@@ -194,5 +194,21 @@ function xmldb_lti_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2016041800, 'lti');
     }
 
+    if ($oldversion < 2016051800) {
+
+        // Define field listvisible to be added to lti_types.
+        $table = new xmldb_table('lti_types');
+        $field = new xmldb_field('listvisible', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'coursevisible');
+
+        // Conditionally launch add field listvisible.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Lti savepoint reached.
+        upgrade_mod_savepoint(true, 2016051800, 'lti');
+    }
+
+
     return true;
 }

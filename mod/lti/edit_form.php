@@ -103,6 +103,15 @@ class mod_lti_edit_types_form extends moodleform{
         $mform->addHelpButton('lti_customparameters', 'custom', 'lti');
 
         if (!$istool && !empty($this->_customdata->isadmin)) {
+            $mform->addElement('advcheckbox', 'lti_listvisible', '&nbsp;', ' ' . get_string('show_in_list', 'lti'));
+            $mform->addHelpButton('lti_listvisible', 'show_in_list', 'lti');
+            $mform->setDefault('lti_listvisible', '1');
+        } else {
+            $mform->addElement('hidden', 'lti_listvisible', '1');
+        }
+        $mform->setType('lti_listvisible', PARAM_BOOL);
+
+        if (!$istool && !empty($this->_customdata->isadmin)) {
             $mform->addElement('advcheckbox', 'lti_coursevisible', '&nbsp;', ' ' . get_string('show_in_course', 'lti'));
             $mform->addHelpButton('lti_coursevisible', 'show_in_course', 'lti');
             $mform->setDefault('lti_coursevisible', '1');
