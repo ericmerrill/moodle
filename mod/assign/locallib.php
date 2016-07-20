@@ -5449,7 +5449,8 @@ class assign {
                                                                $assignmentname);
         }
 
-        $eventdata = new stdClass();
+        $eventdata = new \core\message\message();
+        $eventdata->courseid         = $course->id;
         $eventdata->modulename       = 'assign';
         $eventdata->userfrom         = $userfrom;
         $eventdata->userto           = $userto;
