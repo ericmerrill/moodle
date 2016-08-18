@@ -229,6 +229,9 @@ class completion_info {
     /* @var array Completion criteria {@link completion_info::get_criteria()}  */
     private $criteria;
 
+    /* @var array local data cache. */
+    private static $datacache = array();
+
     /**
      * Return array of aggregation methods
      * @return array
@@ -890,6 +893,8 @@ class completion_info {
             $userid = $USER->id;
         }
 
+        $key = $userid . '_' . $this->course->id;
+
         // See if requested data is present in cache (use cache for current user only).
         $usecache = $userid == $USER->id;
         $cacheddata = array();
@@ -897,12 +902,19 @@ class completion_info {
             if (!isset($this->course->cacherev)) {
                 $this->course = get_course($this->course_id);
             }
-            if ($cacheddata = $completioncache->get($userid . '_' . $this->course->id)) {
+            if (isset(self::$datacache[$key])) {
+                $cacheddata = self::$datacache[$key];
+            }
+
+            if (!empty($cacheddata) || $cacheddata = $completioncache->get($key)) {
                 if ($cacheddata['cacherev'] != $this->course->cacherev) {
                     // Course structure has been changed since the last caching, forget the cache.
                     $cacheddata = array();
                 } else if (array_key_exists($cm->id, $cacheddata)) {
-                    return $cacheddata[$cm->id];
+                    if (!isset(self::$datacache[$key])) {
+                        self::$datacache[$key] = $cacheddata;
+                    }
+                    return clone $cacheddata[$cm->id];
                 }
             }
         }
@@ -971,6 +983,7 @@ class completion_info {
 
         if ($usecache) {
             $cacheddata['cacherev'] = $this->course->cacherev;
+            self::$datacache[$key] = $cacheddata;
             $completioncache->set($userid . '_' . $this->course->id, $cacheddata);
         }
         return $cacheddata[$cm->id];
@@ -1014,6 +1027,7 @@ class completion_info {
                 $cachedata = array('cacherev' => $this->course->cacherev);
             }
             $cachedata[$cm->id] = $data;
+            self::$datacache[$data->userid . '_' . $cm->course] = $cachedata;
             $completioncache->set($data->userid . '_' . $cm->course, $cachedata);
 
             // reset modinfo for user (no need to call rebuild_course_cache())
