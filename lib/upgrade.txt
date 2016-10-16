@@ -102,7 +102,7 @@ information provided here is intended especially for developers.
 * The minifier library used by core_minify has been switched to https://github.com/matthiasmullie/minify - there are minor differences
   in minifier output.
 * context_header additional buttons can now have a class attribute provided in the link attributes.
-* The first parameter $eventdata of \core\manager::send_message() should be \core\message. usage of \stdClass is depecated.
+* The first parameter $eventdata of \core\manager::send_message() should be \core\message. Use of \stdClass is depecated.
 * message_sent::create_from_ids has an additional required parameter $courseid with a default value of SITEID.
 
 === 3.1 ===
