@@ -523,19 +523,39 @@ function assign_print_overview($courses, &$htmlarray) {
     }
 
     $assignmentids = array();
+    $allassignmentids = array();
+
+    foreach ($assignments as $assignment) {
+        $allassignmentids[] = $assignment->id;
+    }
+
+    list($extra, $params) = $DB->get_in_or_equal($allassignmentids);
+
+    $sql = "SELECT ao.assignid FROM {assign_overrides} ao
+             WHERE ao.assignid {$extra}
+               AND (ao.userid = ?
+                   OR ao.groupid IN (SELECT gm.groupid
+                                       FROM {groups_members} gm
+                                      WHERE gm.userid = ?))
+          GROUP BY ao.assignid";
+    $params[] = $USER->id;
+    $params[] = $USER->id;
+    $assignswithoverride = $DB->get_records_sql($sql, $params);
 
     // Do assignment_base::isopen() here without loading the whole thing for speed.
     foreach ($assignments as $key => $assignment) {
-        // Apply overrides.
-        list ($course, $cm) = get_course_and_cm_from_cmid($assignment->coursemodule, 'assign');
-        $context = context_module::instance($cm->id);
-        $assign = new assign($context, $cm, $course);
-        $assign->update_effective_access($USER->id);
+        if (isset($assignswithoverride[$assignment->id])) {
+            // Apply overrides.
+            $context = context_module::instance($assignment->coursemodule);
+            $assign = new assign($context, null, $courses[$assignment->course]);
+            $assign->set_instance($assignment);
+            $assign->update_effective_access($USER->id);
 
-        // Merge with assign defaults.
-        $keys = array('duedate', 'cutoffdate', 'allowsubmissionsfromdate');
-        foreach ($keys as $keydate) {
-            $assignment->{$keydate} = $assign->get_instance()->{$keydate};
+            // Merge with assign defaults.
+            $keys = array('duedate', 'cutoffdate', 'allowsubmissionsfromdate');
+            foreach ($keys as $keydate) {
+                $assignment->{$keydate} = $assign->get_instance()->{$keydate};
+            }
         }
 
         $time = time();

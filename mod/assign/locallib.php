@@ -883,33 +883,35 @@ class assign {
     public function override_exists($userid) {
         global $DB;
 
-        // Check for user override.
-        $override = $DB->get_record('assign_overrides', array('assignid' => $this->get_instance()->id, 'userid' => $userid));
+        // SQL to load all overrides for the user, including group overrides.
+        $sql = "SELECT ao.* FROM {assign_overrides} ao
+                 WHERE ao.assignid = ?
+                   AND (ao.userid = ?
+                       OR ao.groupid IN (SELECT gm.groupid FROM {groups_members} gm
+                                          WHERE gm.userid = ?))";
 
-        if (!$override) {
-            $override = new stdClass();
-            $override->duedate = null;
-            $override->cutoffdate = null;
-            $override->allowsubmissionsfromdate = null;
-        }
+        $params = array($this->get_instance()->id, $userid, $userid);
+        $overrides = $DB->get_records_sql($sql, $params);
 
-        // Check for group overrides.
-        $groupings = groups_get_user_groups($this->get_instance()->course, $userid);
+        // Default override (none).
+        $override = new stdClass();
+        $override->duedate = null;
+        $override->cutoffdate = null;
+        $override->allowsubmissionsfromdate = null;
 
-        if (!empty($groupings[0])) {
-            // Select all overrides that apply to the User's groups.
-            list($extra, $params) = $DB->get_in_or_equal(array_values($groupings[0]));
-            $sql = "SELECT * FROM {assign_overrides}
-                    WHERE groupid $extra AND assignid = ?";
-            $params[] = $this->get_instance()->id;
-            $records = $DB->get_records_sql($sql, $params);
-
-            // Combine the overrides.
+        if ($overrides) {
             $duedates = array();
             $cutoffdates = array();
             $allowsubmissionsfromdates = array();
 
-            foreach ($records as $gpoverride) {
+            foreach ($overrides as $gpoverride) {
+                if (!empty($gpoverride->userid)) {
+                    // This is actually a user override, not a group.
+                    // That gets assigned strait to the override.
+                    $override = $gpoverride;
+                    continue;
+                }
+
                 if (isset($gpoverride->duedate)) {
                     $duedates[] = $gpoverride->duedate;
                 }
@@ -920,6 +922,7 @@ class assign {
                     $allowsubmissionsfromdates[] = $gpoverride->allowsubmissionsfromdate;
                 }
             }
+
             // If there is a user override for a setting, ignore the group override.
             if (is_null($override->allowsubmissionsfromdate) && count($allowsubmissionsfromdates)) {
                 $override->allowsubmissionsfromdate = min($allowsubmissionsfromdates);
