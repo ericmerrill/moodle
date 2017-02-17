@@ -68,6 +68,7 @@ try {
     } else {
         header('HTTP/1.0 500 Internal Server Error');
     }
+    throw $e;
     throw new moodle_exception('An exception was caught but can not be returned for security purpose.
         To easily debug, comment the try catch.');
 }
