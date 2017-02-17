@@ -6392,6 +6392,23 @@ function get_file_storage($reset = false) {
 }
 
 /**
+ * Returns the file conversion API.
+ *
+ * @return \core_files\converter
+ */
+function get_file_converter($reset = false) {
+    global $CFG;
+
+    static $converter = null;
+
+    if (!$converter || $reset) {
+        $converter = new \core_files\converter();
+    }
+
+    return $converter;
+}
+
+/**
  * Returns local file storage instance
  *
  * @return file_browser
