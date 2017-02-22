@@ -201,9 +201,28 @@ EOD;
                         $record->filepath = '/';
                         $record->filename = $plugin->get_type() . '-' . $filename;
 
-                        $htmlfile = $fs->create_file_from_string($record, $file);
+                        $htmlfile = $fs->get_file($record->contextid,
+                                $record->component,
+                                $record->filearea,
+                                $record->itemid,
+                                $record->filepath,
+                                $record->filename);
+
+                        $newhash = sha1($file);
+
+                        // If the file exists, and the content hash doesn't match, remove it.
+                        if ($htmlfile && $newhash !== $htmlfile->get_contenthash()) {
+                            $htmlfile->delete();
+                            $htmlfile = false;
+                        }
+
+                        // If the file doesn't exist, or if it was removed above, create a new one.
+                        if (!$htmlfile) {
+                            $htmlfile = $fs->create_file_from_string($record, $file);
+                        }
+
                         $convertedfile = $converter->start_conversion($htmlfile, 'pdf');
-                        $htmlfile->delete();
+
                         if ($convertedfile) {
                             $files[$filename] = $convertedfile;
                         }

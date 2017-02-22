@@ -161,7 +161,7 @@ class converter {
             $keys = array_keys($converters, $currentconverter);
             $key = $keys[0];
             if (isset($converters[$key + 1])) {
-                return $converters[$currentconverter + 1];
+                return $converters[$key + 1];
             } else {
                 return false;
             }
