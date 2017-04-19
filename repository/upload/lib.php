@@ -35,7 +35,11 @@ require_once($CFG->dirroot . '/repository/lib.php');
  */
 
 class repository_upload extends repository {
+    /** @var string[] Array of allowed mime types */
     private $mimetypes = array();
+
+    /** @var string[] Array of allowed extension types */
+    private $extensions = array();
 
     /**
      * Print a upload form
@@ -83,8 +87,16 @@ class repository_upload extends repository {
         if ((is_array($types) and in_array('*', $types)) or $types == '*') {
             $this->mimetypes = '*';
         } else {
+            // The xxx extension is used as a 'unknown type' placeholder in core.
+            $unknowntype = mimeinfo('type', 'file.xxx');
             foreach ($types as $type) {
-                $this->mimetypes[] = mimeinfo('type', $type);
+                $mimetype = mimeinfo('type', $type);
+                // If it is an unknown type, and started with a dot, then it just an unknown extension type.
+                if ($mimetype === $unknowntype && substr($type, 0, 1) === '.') {
+                    $this->extensions[] = core_text::strtolower(pathinfo($type, PATHINFO_EXTENSION));
+                } else {
+                    $this->mimetypes[] = $mimetype;
+                }
             }
         }
 
@@ -179,10 +191,15 @@ class repository_upload extends repository {
         }
 
         if ($this->mimetypes != '*') {
-            // check filetype
-            $filemimetype = file_storage::mimetype($_FILES[$elname]['tmp_name'], $record->filename);
-            if (!in_array($filemimetype, $this->mimetypes)) {
-                throw new moodle_exception('invalidfiletype', 'repository', '', get_mimetype_description(array('filename' => $_FILES[$elname]['name'])));
+            // This if is the logical inverse of 'If we have allowed extensions, and the extension isn't empty,
+            // and the extension is in the allowed array'. If that logic passes, then the file is allowed.
+            $ext = core_text::strtolower(pathinfo($record->filename, PATHINFO_EXTENSION));
+            if (empty($this->extensions) || empty($ext) || !in_array($ext, $this->extensions)) {
+                // Check filetype.
+                $filemimetype = file_storage::mimetype($_FILES[$elname]['tmp_name'], $record->filename);
+                if (!in_array($filemimetype, $this->mimetypes)) {
+                    throw new moodle_exception('invalidfiletype', 'repository', '', get_mimetype_description(array('filename' => $_FILES[$elname]['name'])));
+                }
             }
         }
 

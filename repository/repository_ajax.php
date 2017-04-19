@@ -134,14 +134,29 @@ switch ($action) {
     case 'download':
         // validate mimetype
         $mimetypes = array();
+        $extensions = array();
+
         if ((is_array($accepted_types) and in_array('*', $accepted_types)) or $accepted_types == '*') {
             $mimetypes = '*';
         } else {
+            $unknowntype = mimeinfo('type', 'file.xxx');
             foreach ($accepted_types as $type) {
-                $mimetypes[] = mimeinfo('type', $type);
+                $mimetype = mimeinfo('type', $type);
+                // If it is an unknown type, and started with a dot, then it just an unknown extension type.
+                if ($mimetype === $unknowntype && substr($type, 0, 1) === '.') {
+                    $extensions[] = core_text::strtolower(pathinfo($type, PATHINFO_EXTENSION));
+                } else {
+                    $mimetypes[] = $mimetype;
+                }
             }
-            if (!in_array(mimeinfo('type', $saveas_filename), $mimetypes)) {
-                throw new moodle_exception('invalidfiletype', 'repository', '', get_mimetype_description(array('filename' => $saveas_filename)));
+            $fileext = core_text::strtolower(pathinfo($saveas_filename, PATHINFO_EXTENSION));
+            if (empty($extensions) || empty($fileext) || !in_array($fileext, $extensions)) {
+                // If we don't have any allowed extensions, or the file doesn't have an extension, or it isn't allowed,
+                // then move on to checking the mime type.
+                if (!in_array(mimeinfo('type', $saveas_filename), $mimetypes)) {
+                    $description = get_mimetype_description(array('filename' => $saveas_filename));
+                    throw new moodle_exception('invalidfiletype', 'repository', '', $description);
+                }
             }
         }
 

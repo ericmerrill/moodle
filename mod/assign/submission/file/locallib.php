@@ -197,7 +197,7 @@ class assign_submission_file extends assign_submission_plugin {
             $typesets = $this->get_configured_typesets();
             foreach ($typesets as $type) {
                 $a = new stdClass();
-                $extensions = file_get_typegroup('extension', $type);
+                $extensions = file_get_typegroup('extension', $type, true);
                 $typetext = html_writer::tag('li', $type);
                 // Only bother checking if it's a mimetype or group if it has extensions in the group.
                 if (!empty($extensions)) {

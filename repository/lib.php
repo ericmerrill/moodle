@@ -3117,7 +3117,7 @@ function initialise_filepicker($args) {
 
 
     // provided by form element
-    $return->accepted_types = file_get_typegroup('extension', $args->accepted_types);
+    $return->accepted_types = file_get_typegroup('extension', $args->accepted_types, true);
     $return->return_types = $args->return_types;
     $templates = array();
     foreach ($repositories as $repository) {
