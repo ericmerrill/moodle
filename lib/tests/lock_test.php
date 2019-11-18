@@ -148,12 +148,18 @@ class lock_testcase extends advanced_testcase {
         $lock1 = $factory->get_lock('lock1', 1, 30);
         $this->assertNotEmpty($lock1, "Didn't get lock 1");
         $lock2 = $factory->get_lock('lock1', 1, 30);
-        $this->assertFalse($lock2, "Got lock 2");
+        if (!empty($lock2)) {
+            $this->assertFail("Got lock 2");
+        }
 
 
 
-        $lock2->release();
-        $lock1->release();
+        if ($lock2) {
+            $lock2->release();
+        }
+        if ($lock1) {
+            $lock1->release();
+        }
 	}
 
 	public function test_dup_locks_factory() {
@@ -167,13 +173,61 @@ class lock_testcase extends advanced_testcase {
 
         $factory2 = \core\lock\lock_config::get_lock_factory('enrol_lmb');
         $lock2 = $factory2->get_lock('lock1', 1, 30);
-        $this->assertFalse($lock2, "Got lock 2");
+        $this->assertFalse((bool)$lock2, "Got lock 2");
 
 //var_dump($lock1);
 //var_dump($lock2);
 
-        $lock2->release();
-        $lock1->release();
+        if ($lock2) {
+            $lock2->release();
+        }
+        if ($lock1) {
+            $lock1->release();
+        }
+	}
+
+	public function test_dup_locks_files() {
+        global $CFG;
+        $this->resetAfterTest();
+
+        $CFG->lock_factory = '\core\lock\file_lock_factory';
+        $factory = \core\lock\lock_config::get_lock_factory('enrol_lmb');
+
+        $lock1 = $factory->get_lock('lock1', 1, 30);
+        $this->assertNotEmpty($lock1, "Didn't get lock 1");
+        $lock2 = $factory->get_lock('lock1', 1, 30);
+        $this->assertFalse((bool)$lock2, "Got lock 2");
+
+
+
+        if ($lock2) {
+            $lock2->release();
+        }
+        if ($lock1) {
+            $lock1->release();
+        }
+	}
+
+	public function test_dup_locks_db() {
+        global $CFG;
+        $this->resetAfterTest();
+
+        $CFG->lock_factory = '\core\lock\db_record_lock_factory';
+        $factory = \core\lock\lock_config::get_lock_factory('enrol_lmb');
+
+        $lock1 = $factory->get_lock('lock1', 1, 30);
+        $this->assertNotEmpty($lock1, "Didn't get lock 1");
+        $lock2 = $factory->get_lock('lock1', 1, 30);
+        $this->assertFalse((bool)$lock2, "Got lock 2");
+
+
+
+        if ($lock2) {
+            $lock2->release();
+        }
+        if ($lock1) {
+            $lock1->release();
+        }
 	}
 
 }
