@@ -139,5 +139,42 @@ class lock_testcase extends advanced_testcase {
 
     }
 
+    public function test_dup_locks() {
+        global $CFG;
+        $this->resetAfterTest();
+
+        $factory = \core\lock\lock_config::get_lock_factory('enrol_lmb');
+
+        $lock1 = $factory->get_lock('lock1', 1, 30);
+        $this->assertNotEmpty($lock1, "Didn't get lock 1");
+        $lock2 = $factory->get_lock('lock1', 1, 30);
+        $this->assertFalse($lock2, "Got lock 2");
+
+
+
+        $lock2->release();
+        $lock1->release();
+	}
+
+	public function test_dup_locks_factory() {
+        global $CFG;
+        $this->resetAfterTest();
+
+        $factory1 = \core\lock\lock_config::get_lock_factory('enrol_lmb');
+
+        $lock1 = $factory1->get_lock('lock1', 1, 30);
+        $this->assertNotEmpty($lock1, "Didn't get lock 1");
+
+        $factory2 = \core\lock\lock_config::get_lock_factory('enrol_lmb');
+        $lock2 = $factory2->get_lock('lock1', 1, 30);
+        $this->assertFalse($lock2, "Got lock 2");
+
+//var_dump($lock1);
+//var_dump($lock2);
+
+        $lock2->release();
+        $lock1->release();
+	}
+
 }
 
