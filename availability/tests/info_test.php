@@ -218,8 +218,8 @@ class info_testcase extends advanced_testcase {
         // if we have already obtained dynamic data.
         $modinfo = get_fast_modinfo($course, $student->id);
         $cminfo = $modinfo->get_cm($cm->id);
-        // This will obtain dynamic data.
-        $name = $cminfo->name;
+        // This will obtain all dynamic data.
+        $available = $cminfo->available;
         $beforequeries = $DB->perf_get_queries();
         $this->assertTrue(info_module::is_user_visible($cminfo, $student->id, false));
         $this->assertEquals($beforequeries, $DB->perf_get_queries());
@@ -535,7 +535,7 @@ class info_testcase extends advanced_testcase {
 
         // At this point we will generate dynamic data for $cm1, which will cause the debugging
         // call below.
-        $this->assertEquals('Page1', $cm1->name);
+        $this->assertEquals(false, $cm1->available);
 
         $this->assertDebuggingCalled('Error processing availability data for ' .
                 '&lsquo;Page1&rsquo;: Invalid availability text');
