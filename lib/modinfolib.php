@@ -2096,10 +2096,6 @@ class cm_info implements IteratorAggregate {
         if (!$this->uservisible && $this->visibleoncoursepage && $this->availableinfo) {
             $this->uservisibleoncoursepage = true;
         }
-
-        // if (!is_null($this->uservisibleoverride)) {
-        //     $this->uservisible = $this->uservisibleoverride;
-        // }
     }
 
     /**
