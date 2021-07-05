@@ -1124,6 +1124,10 @@ class cm_info implements IteratorAggregate {
      */
     private $deletioninprogress;
 
+    private $loadavailability = false;
+    private $loaduservisibility = false;
+    private $uservisibleoverride = null;
+
     /**
      * List of class read-only properties and their getter methods.
      * Used by magic functions __get(), __isset(), __empty()
@@ -1428,7 +1432,7 @@ class cm_info implements IteratorAggregate {
      * @return mixed Optional custom data stored in modinfo cache for this activity, or null if none
      */
     public function get_custom_data() {
-        $this->obtain_dynamic_data();
+        $this->obtain_dynamic_data(true);
         return $this->customdata;
     }
 
@@ -1749,6 +1753,8 @@ class cm_info implements IteratorAggregate {
      */
     public function set_user_visible($uservisible) {
         $this->check_not_view_only();
+        $this->load_availability();
+        // $this->uservisibleoverride = $uservisible;
         $this->uservisible = $uservisible;
     }
 
@@ -1774,6 +1780,8 @@ class cm_info implements IteratorAggregate {
      */
     public function set_available($available, $showavailability=0, $availableinfo='') {
         $this->check_not_view_only();
+        $this->load_availability();
+        // $this->loadavailability = false;
         $this->available = $available;
         if (!$showavailability) {
             $availableinfo = '';
@@ -1905,13 +1913,59 @@ class cm_info implements IteratorAggregate {
      * any getter magic method from cm_info.
      * @return void
      */
-    private function obtain_dynamic_data() {
+    private function obtain_dynamic_data(bool $deferavailability = false) {
         global $CFG;
         $userid = $this->modinfo->get_user_id();
+
+        // // This is a special case. If we called this previously, but didn't load availability data, load it now.
+        // if (!$skipavailable && ($userid != -1) && ($this->state > self::STATE_BUILDING_DYNAMIC) && !isset($this->available)) {
+        //     $this->update_availability();
+        //
+        //     // Update visible state for current user.
+        //     $this->update_user_visible();
+        //     return;
+        // }
+
         if ($this->state >= self::STATE_BUILDING_DYNAMIC || $userid == -1) {
             return;
         }
         $this->state = self::STATE_BUILDING_DYNAMIC;
+
+        // Mark that we loaded dynamic data, and we can load availability if needed.
+        $this->loadavailability = true;
+        // if (!$deferavailability) {
+        //     $this->load_availability();
+        // }
+
+        // if (!$skipavailable) {
+        //
+        //
+        //     // Update visible state for current user.
+        //     $this->update_user_visible();
+        // }
+
+        // Let module make dynamic changes at this point
+        $this->call_mod_function('cm_info_dynamic');
+        $this->state = self::STATE_DYNAMIC;
+    }
+
+    /**
+     * Loads availability if needed. Only helpful if {@link obtain_dynamic_data} is called first.
+     *
+     * @return void
+     */
+    private function load_availability(): void {
+        global $CFG;
+
+        if (!$this->loadavailability) {
+            return;
+        }
+        $this->loadavailability = false;
+
+        $userid = $this->modinfo->get_user_id();
+        if ($userid == -1) {
+            return;
+        }
 
         if (!empty($CFG->enableavailability)) {
             // Get availability information.
@@ -1920,7 +1974,7 @@ class cm_info implements IteratorAggregate {
             // Note that the modinfo currently available only includes minimal details (basic data)
             // but we know that this function does not need anything more than basic data.
             $this->available = $ci->is_available($this->availableinfo, true,
-                    $userid, $this->modinfo);
+                $userid, $this->modinfo);
         } else {
             $this->available = true;
         }
@@ -1931,17 +1985,12 @@ class cm_info implements IteratorAggregate {
             if (!$parentsection->get_available()) {
                 // Do not store info from section here, as that is already
                 // presented from the section (if appropriate) - just change
-                // the flag
+                // the flag.
                 $this->available = false;
             }
         }
 
-        // Update visible state for current user.
         $this->update_user_visible();
-
-        // Let module make dynamic changes at this point
-        $this->call_mod_function('cm_info_dynamic');
-        $this->state = self::STATE_DYNAMIC;
     }
 
     /**
@@ -1955,6 +2004,7 @@ class cm_info implements IteratorAggregate {
      */
     public function get_user_visible() {
         $this->obtain_dynamic_data();
+        $this->load_availability();
         return $this->uservisible;
     }
 
@@ -1968,6 +2018,7 @@ class cm_info implements IteratorAggregate {
      */
     public function is_visible_on_course_page() {
         $this->obtain_dynamic_data();
+        $this->load_availability();
         return $this->uservisibleoncoursepage;
     }
 
@@ -1992,6 +2043,7 @@ class cm_info implements IteratorAggregate {
      */
     private function get_available() {
         $this->obtain_dynamic_data();
+        $this->load_availability();
         return $this->available;
     }
 
@@ -2014,6 +2066,7 @@ class cm_info implements IteratorAggregate {
      */
     private function get_available_info() {
         $this->obtain_dynamic_data();
+        $this->load_availability();
         return $this->availableinfo;
     }
 
@@ -2063,6 +2116,10 @@ class cm_info implements IteratorAggregate {
         if (!$this->uservisible && $this->visibleoncoursepage && $this->availableinfo) {
             $this->uservisibleoncoursepage = true;
         }
+
+        // if (!is_null($this->uservisibleoverride)) {
+        //     $this->uservisible = $this->uservisibleoverride;
+        // }
     }
 
     /**
