@@ -218,8 +218,8 @@ class info_testcase extends advanced_testcase {
         // if we have already obtained dynamic data.
         $modinfo = get_fast_modinfo($course, $student->id);
         $cminfo = $modinfo->get_cm($cm->id);
-        // This will obtain dynamic data.
-        $name = $cminfo->available;
+        // This will obtain all dynamic data.
+        $available = $cminfo->available;
         $beforequeries = $DB->perf_get_queries();
         $this->assertTrue(info_module::is_user_visible($cminfo, $student->id, false));
         $this->assertEquals($beforequeries, $DB->perf_get_queries());
