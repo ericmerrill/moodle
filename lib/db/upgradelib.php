@@ -1360,7 +1360,7 @@ function upgrade_migrate_question_table(): void {
                 $tags = $DB->get_records('quiz_slot_tags', ['slotid' => $quizslot->id]);
                 $tagstrings = [];
                 foreach ($tags as $tag) {
-                    $tagstrings [] = "{$tag->id},{$tag->name}";
+                    $tagstrings[] = "{$tag->id},{$tag->tagname}";
                 }
                 if (!empty($tagstrings)) {
                     $filtercondition->tags = $tagstrings;
