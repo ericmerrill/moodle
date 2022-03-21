@@ -135,32 +135,78 @@ function xmldb_block_myoverview_upgrade($oldversion) {
         }
 
         // Begin looking for any and all instances of course overview in customised /my pages.
-        $pageselect = 'name = :name and private = :private and userid IS NOT NULL';
-        $pageparams['name'] = MY_PAGE_DEFAULT;
-        $pageparams['private'] = MY_PAGE_PRIVATE;
+        try {
+            // Casting subpagepattern to an int could fail if someone set it to a non-int, but core code doesn't do that.
+            // Because of this, we do this within a try with a dml_exception catch that implements a slower fallback that
+            // doesn't use the cast-join pattern.
+            $basesql = "FROM {my_pages} mp
+                        JOIN {block_instances} bi ON ".$DB->sql_cast_char2int('bi.subpagepattern')." = mp.id
+                                                 AND bi.blockname = :block
+                                                 AND bi.pagetypepattern = :type
+                       WHERE mp.name = :name
+                         AND mp.private = :private
+                         AND mp.userid IS NOT NULL";
+            $params = [
+                'block' => 'myoverview',
+                'type' => 'my-index',
+                'name' => MY_PAGE_DEFAULT,
+                'private' => MY_PAGE_PRIVATE
+            ];
 
-        $total = $DB->count_records_select('my_pages', $pageselect, $pageparams);
-        // Check if where have pages to check for blocks.
+            $total = $DB->count_records_sql("SELECT COUNT(bi.*) $basesql", $params);
+
+            if ($total > 0) {
+                $items = $DB->get_recordset_sql("SELECT bi.* $basesql", $params);
+            }
+            $fallback = false;
+        } catch (\dml_exception $e) {
+            // If an exception was thrown, we are going to move onto the fallback method..
+            $pageselect = 'name = :name and private = :private and userid IS NOT NULL';
+            $pageparams = [
+                'name' => MY_PAGE_DEFAULT,
+                'private' => MY_PAGE_PRIVATE
+            ];
+
+            $total = $DB->count_records_select('my_pages', $pageselect, $pageparams);
+
+            // Check if where have pages to check for blocks.
+            if ($total > 0) {
+                $items = $DB->get_recordset_select('my_pages', $pageselect, $pageparams);
+            }
+            $fallback = true;
+        }
+
         if ($total > 0) {
-            $pages = $DB->get_recordset_select('my_pages', $pageselect, $pageparams);
             // Show a progress bar.
             $pagepbar = new progress_bar('deletepageblockinstances', 500, true);
             $i = 0;
             $pagepbar->update($i, $total, "Deleting user page block instance - $i/$total.");
-            foreach ($pages as $page) {
-                $blocksql = 'blockname = :blockname and pagetypepattern = :pagetypepattern and subpagepattern = :subpagepattern';
-                $blockparams['blockname'] = 'myoverview';
-                $blockparams['pagetypepattern'] = 'my-index';
-                $blockparams['subpagepattern'] = $page->id;
-                $instances = $DB->get_records_select('block_instances', $blocksql, $blockparams);
-                foreach ($instances as $instance) {
-                    delete_block_instance($instance);
+
+            foreach ($items as $item) {
+                if ($fallback) {
+                    // In the fallback case, each item is a page, so we need to get any matching instances and remove them.
+                    $blocksql = 'blockname = :block and pagetypepattern = :pagetypepattern and subpagepattern = :subpagepattern';
+                    $blockparams['block'] = 'myoverview';
+                    $blockparams['pagetypepattern'] = 'my-index';
+                    $blockparams['subpagepattern'] = $item->id;
+                    $instances = $DB->get_records_select('block_instances', $blocksql, $blockparams);
+                    foreach ($instances as $instance) {
+                        delete_block_instance($instance);
+                    }
+                } else {
+                    // In the main case, each item is a block instance, we just delete it.
+                    delete_block_instance($item);
                 }
-                // Update progress.
-                $pagepbar->update($i, $total, "Deleting user page block instance - $i/$total.");
+
+                if (($i % 100) == 0) {
+                    // Decrease how often we call the progress bar update. Speeds up the process.
+                    $pagepbar->update($i, $total, "Deleting user page block instance - $i/$total.");
+                }
                 $i++;
             }
-            $pages->close();
+
+            $items->close();
+
             // Update progress.
             $pagepbar->update($total, $total, "Deleting user page block instance - $total/$total.");
         }
