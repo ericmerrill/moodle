@@ -80,7 +80,7 @@ class time_last_message_between_users implements \cache_data_source {
         $results = [];
 
         foreach ($keys as $key) {
-            $results[] = $this->load_for_cache($key);
+            $results[$key] = $this->load_for_cache($key);
         }
 
         return $results;

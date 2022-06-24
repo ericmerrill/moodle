@@ -482,7 +482,7 @@ interface cache_data_source {
      * Loads several keys for the cache.
      *
      * @param array $keys An array of keys each of which will be string|int.
-     * @return array An array of matching data items.
+     * @return array An array of matching data items, indexed by key.
      */
     public function load_many_for_cache(array $keys);
 }
