@@ -96,13 +96,13 @@ class overrides implements \cache_data_source {
      * Loads several keys for the cache.
      *
      * @param array $keys An array of keys each of which will be string|int.
-     * @return array An array of matching data items.
+     * @return array An array of matching data items, indexed by key.
      */
     public function load_many_for_cache(array $keys) {
         $results = [];
 
         foreach ($keys as $key) {
-            $results[] = $this->load_for_cache($key);
+            $results[$key] = $this->load_for_cache($key);
         }
 
         return $results;
